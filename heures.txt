@@ -1,0 +1,23 @@
+9 mai 2022:
+6h
+- Meeting initial pour lancer le projet
+    - Réduction du bruit des données (historique)
+    - Comment donner une valeur en temps réel (dernière donnée) plus fiable et moins sujette au bruit (ie. pas de valeur négative)
+    - Accès aux données: dashboard et csv des données des senseurs
+- Exploration initiale du dashboard: voir les tendances, le type de bruit dans les données
+- Préparation initiale des scripts python: bien lire et explorer les données, écrire le squelette qui permettra l'essai des techniques de lissages/réduction du bruit
+
+10 mai 2022:
+5h
+- Continuer le squelette qui permettra l'essai des techniques de lissages.
+- Meeting pour cibler les silos plus problmatiques/intéressant
+
+11 mai 2022:
+7h
+- Terminer le squelette qui permettra l'essai des techniques de lissages.
+- Premiers essais de différentes techniques sur les silos ciblés (savitsky golay)
+- Essais également de techniques de lissage en "temps réel" qui permettent de lisser la dernière valeur du senseur
+
+12 mai 2022:
+
+- Transformer la distance en % du volume à partir des mesures des silos et l'implémenter

@@ -1,0 +1,9 @@
+Premier meeting:
+Nom des silos sur la base de donées:
+NomFerme-#silo [MAJ=paires de silo][min=sensors meme silo]
+
+Silo problématiques:
+1485B - algo dans le champ
+1486A
+1486B
+

@@ -1,0 +1,11 @@
+typer
+numpy
+pandas
+scipy
+rich
+matplotlib
+plotly
+dash
+seaborn
+bokeh
+streamlit
