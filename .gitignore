@@ -1,0 +1,6 @@
+**/.vim/
+**/logs/
+**/__pycache__/
+**egg-info**
+**~lock**
+**mypy**

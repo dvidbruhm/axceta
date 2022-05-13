@@ -16,8 +16,7 @@ def viz():
     global max_silo_index, current_silo_index
     df = data.load_silo_data(file_path=Path("data", "silo-data-2.csv"))
     conversion_df = data.load_dist_to_volume_data(file_path=Path("data", "dist_to_volume.csv"))
-    plot.plot_data_streamlit(df)
-    utils.dist_to_volume(5.34, "Avinor-1483A", conversion_df)
-
+    plot.plot_data_streamlit(df, conversion_df)
+    #data.add_percent_filled_to_data(Path("data", "silo-data-2.csv"), conversion_df)
 
 viz()
