@@ -37,7 +37,7 @@ logging_config = {
             "filename": Path(LOGS_DIR, "info.log"),
             "maxBytes": 10485760,  # 1 MB
             "backupCount": 10,
-            "formatter": "detailed",
+            "formatter": "minimal",
             "level": logging.INFO,
         },
         "error": {

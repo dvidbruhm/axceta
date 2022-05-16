@@ -19,5 +19,15 @@
 - Essais également de techniques de lissage en "temps réel" qui permettent de lisser la dernière valeur du senseur
 
 12 mai 2022:
-
+1h30
 - Transformer la distance en % du volume à partir des mesures des silos et l'implémenter
+
+13 mai 2022:
+1h
+- Transformer la distance en % du volume à partir des mesures des silos et l'implémenter
+- Régler un problème de lecture des données
+
+16 mai 2022:
+6h
+- Tester et comparer le calcul du volume avec les données du dashboard, régler le calcul pour obtenir les mêmes valeurs que le dashboard
+- Tester des algorithmes de lissages, et implémenter un algorithme en "temps réel"
