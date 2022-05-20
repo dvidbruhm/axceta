@@ -5,7 +5,6 @@ scipy
 rich
 matplotlib
 plotly
-dash
-seaborn
-bokeh
 streamlit
+savgol-calculator
+scikit-learn

@@ -64,7 +64,7 @@ def dist_to_volume(dist: float, silo_name: str, conversion_data: pd.DataFrame) -
 
 def batch_dist_to_vol(data: pd.DataFrame, conversion_data: pd.DataFrame, silo_name: str) -> pd.DataFrame:
 
-    silo_data = data[data["LocationName"] == silo_name]
+    silo_data = data[data["LocationName"] == silo_name].copy()
 
     vols = np.zeros_like(silo_data["DistanceFO"].values)
     vols_fo = np.zeros_like(silo_data["DistanceFO"].values)

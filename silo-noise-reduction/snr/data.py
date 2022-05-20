@@ -25,7 +25,7 @@ def load_silo_data(file_path: Path, scale_dist: bool = False) -> pd.DataFrame:
     data = data[data["LocationName"].str.contains("Germec-001B") == False]
     data = data[data["LocationName"].str.contains("Lafontaine-001B") == False]
 
-    data = data[data["UltrasonicEchoSpread"] > 0]
+    data = data[data["UltrasonicEchoSpread"] > 1]
 
     logger.info("Loaded.")
     return data

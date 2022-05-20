@@ -30,4 +30,22 @@
 16 mai 2022:
 6h
 - Tester et comparer le calcul du volume avec les données du dashboard, régler le calcul pour obtenir les mêmes valeurs que le dashboard
-- Tester des algorithmes de lissages, et implémenter un algorithme en "temps réel"
+- Tester des algorithmes de lissages, et implémenter un algorithme en "temps réel" : savitsky-golay filter en temps réel. Le temps réel permet que le lissage ne change pas à l'ajout de nouvelles données
+
+17 mai 2022:
+5h
+
+18 mai 2022:
+7h
+- Quelques problèmes réglés avec un "resampling" pour avoir des données espacées également dans le temps.
+- Implémenter un algorithme de détection des remplissages pour avoir un meilleur lissage.
+- Implémenter un algorithme de régression linéaire en temps réel et le tester dans plusieurs cas.
+
+19 mai 2022:
+5h
+- Implémenter un algorithme de régression polynomiale en temps réel et tester si les résultats sont mieux que la régression linéaire.
+- Meeting pour montrer les lissages temps réel
+- Sav gol temp réel est sélectionné pour être inséré dans le pipeline
+
+TODO:
+- Écrire la fonction comme python plugin dans Azure Data Explorer
