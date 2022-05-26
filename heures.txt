@@ -47,5 +47,18 @@
 - Meeting pour montrer les lissages temps réel
 - Sav gol temp réel est sélectionné pour être inséré dans le pipeline
 
-TODO:
+25 mai 2022:
+6h
 - Écrire la fonction comme python plugin dans Azure Data Explorer
+    - Utiliser le moins de dépendance possible pour faciliter l'intégration
+    - Tester les résultats sur les données des silos pour être certains que tout est beau
+
+26 mai 2022:
+5h
+- Terminer la fonction du plugin python
+- Meeting pour discuter des détails d'intégration avec la plateforme
+    - Ajouter le nom de la colonne à lisser en paramètre d'entrée
+    - Ajouter un paramètre "fixed_window" qui décide si on veut lisser les premières données (lorsqu'on est rendu moins loin que la taille du window") en entrée
+    - Ajouter une colonne qui donne le nombre de points utilisés pour le lissage
+- Ajouter les détails au plugin
+
