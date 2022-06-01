@@ -62,3 +62,20 @@
     - Ajouter une colonne qui donne le nombre de points utilisés pour le lissage
 - Ajouter les détails au plugin
 
+30 mai 2022:
+5h
+- Meeting pour discuter de problèmes du smoothing dans le dashboard et pour comparer les résultats
+    - Petit problème dans la requête sur azure data explorer
+- Comparer les données du dashboard avec ceux que j'obtiens en local : Différence dans le smoothing? 
+    - Le lissage n'est pas le même: dans le dashboard le lissage se fait d'avance, ce qui n'est pas sensé être le cas.
+
+31 mai 2022:
+6h
+- Comprendre la différence entre le smoothing du dashboard et le mien en local (voir fichier python de leur cloud et le csv)
+    - Les données étaient feedé à l'envers dans l'algo
+- Implémenter: enlever les spikes dans les données raw
+- Implémenter le splitting des remplissages lorsqu'il y a une grande augmentation du volume
+
+1er juin 2022:
+4h
+- Terminer l'implémentation de la réduction des spikes et du splitting des remplissages de silo.

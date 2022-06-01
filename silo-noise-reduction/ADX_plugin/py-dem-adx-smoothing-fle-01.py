@@ -1,6 +1,3 @@
-import numpy as np
-import pandas as pd
-
 def gram_poly(i, m, k, s):
     if k > 0:
         grampoly = (4 * k - 2) / (k * (2 * m - k + 1)) * (i * gram_poly(i, m, k - 1, s) + s * gram_poly(i, m, k - 1, s - 1)) - ((k - 1) * (2 * m + k)) / (k * (2 * m - k + 1)) * gram_poly(i, m, k - 2, s)
@@ -119,12 +116,6 @@ def savgol(values: np.ndarray, window: int, order: int, offset: int, fixed_windo
     return filtered_y[-1], window
 
 
-#TEMP
-import matplotlib.pyplot as plt
-import pandas as pd
-kargs = {"window": 15, "order": 2, "offset": 3, "col_to_smooth": "Distance", "fixed_window": False, "output_col_name": "smoothed"}
-df = pd.DataFrame(pd.read_csv("data/Avinor1483A-dashboard-test.csv"))
-
 # Reorder table by date to make sure it is always correct
 df["AcquisitionTime"] = pd.to_datetime(df["AcquisitionTime"])
 df = pd.DataFrame(df.sort_values(by="AcquisitionTime"))
@@ -143,12 +134,6 @@ splits = []
 for split in temp_splits:
     splits.append(remove_spikes(split, spike_size_percent))
 
-tot = 0
-for sp in splits:
-    plt.plot(range(tot, tot+len(sp)), sp)
-    tot += len(sp)
-plt.show()
-
 # Run algo on each split
 splits_smoothed_values = []
 splits_nb_points_used = []
@@ -164,12 +149,3 @@ nb_points_used = np.concatenate(splits_nb_points_used)
 
 result[output_col_name] = smoothed_values
 result["nb_points_used"] = nb_points_used
-
-print(smoothed_values.shape)
-print(df[col_name].values.shape)
-print(nb_points_used.shape)
-plt.plot(smoothed_values)
-plt.plot(result[output_col_name], label="Local smoothed values")
-plt.legend(loc="best")
-plt.show()
-#result.to_csv("data/Avinor1483A-dashboard-test.csv", index=False)
