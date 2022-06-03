@@ -1,5 +1,18 @@
 import numpy as np
 import pandas as pd
+import pwlf
+
+import matplotlib.pyplot as plt
+kargs = {"window": 15, "order": 2, "offset": 3, "col_to_smooth": "Distance", "fixed_window": False, "output_col_name": "smoothed"}
+df = pd.DataFrame(pd.read_csv("data/germec-001B-test-dashboard.csv"))
+
+# Reorder table by date to make sure it is always correct
+df["AcquisitionTime"] = pd.to_datetime(df["AcquisitionTime"])
+df = pd.DataFrame(df.sort_values(by="AcquisitionTime"))
+
+
+
+
 
 def gram_poly(i, m, k, s):
     if k > 0:
@@ -67,7 +80,7 @@ def remove_spikes(values: np.ndarray, spike_size_percent: float):
 
     return values
 
-def split_fills(values: np.ndarray, threshold_percent: float):
+def split_fills(times: np.ndarray, values: np.ndarray, threshold_percent: float):
     nb_prev_data = 5
     split_points = [0]
     for i in range(nb_prev_data, len(values)):
@@ -81,12 +94,17 @@ def split_fills(values: np.ndarray, threshold_percent: float):
     if len(split_points) > 0 and split_points[-1] != len(values) - 1:
         split_points.append(len(values) - 1)
 
-    splits = []
+    values_splits = []
+    time_splits = []
     for i in range(1, len(split_points)):
-        sp = values[split_points[i-1]:min(split_points[i], len(values))]
-        splits.append(np.array(sp))
-    splits[-1] = np.append(splits[-1], splits[-1][-1])
-    return splits
+        val_sp = values[split_points[i-1]:min(split_points[i], len(values))]
+        time_sp = times[split_points[i-1]:min(split_points[i], len(values))]
+        values_splits.append(np.array(val_sp))
+        time_splits.append(np.array(time_sp))
+    values_splits[-1] = np.append(values_splits[-1], values_splits[-1][-1])
+    time_splits[-1] = np.append(time_splits[-1], time_splits[-1][-1])
+
+    return time_splits, values_splits
 
 
 def savgol(values: np.ndarray, window: int, order: int, offset: int, fixed_window: bool = False):
@@ -119,55 +137,95 @@ def savgol(values: np.ndarray, window: int, order: int, offset: int, fixed_windo
     return filtered_y[-1], window
 
 
-#TEMP
-import matplotlib.pyplot as plt
-import pandas as pd
-kargs = {"window": 15, "order": 2, "offset": 3, "col_to_smooth": "Distance", "fixed_window": False, "output_col_name": "smoothed"}
-df = pd.DataFrame(pd.read_csv("data/Avinor1483A-dashboard-test.csv"))
+def algo_savgol(values_splits):
+    splits_smoothed_values = []
+    splits_nb_points_used = []
 
-# Reorder table by date to make sure it is always correct
-df["AcquisitionTime"] = pd.to_datetime(df["AcquisitionTime"])
-df = pd.DataFrame(df.sort_values(by="AcquisitionTime"))
+    for values in values_splits:
+        smoothed_values = np.zeros_like(values)
+        nb_points_used = np.zeros_like(values, dtype=np.int32)
+
+        for i in range(len(values)):
+            smoothed_values[i], nb_points_used[i] = savgol(values[max(0, i-window+1):i+1], window, order, offset, fixed_window)
+
+        splits_smoothed_values.append(smoothed_values)
+        splits_nb_points_used.append(nb_points_used)
+
+    total_smoothed_values = np.concatenate(splits_smoothed_values)
+    total_nb_points_used = np.concatenate(splits_nb_points_used)
+
+    return total_smoothed_values, total_nb_points_used
+
+
+def algo_regressions(time_splits, values_splits):
+    import piecewise_regression as pw
+    splits_smoothed_values = []
+    splits_nb_points_used = []
+    import time as timer
+
+    for time, values in zip(time_splits, values_splits):
+        time = time.astype(np.float)
+        time = (time - np.min(time)) / (np.max(time) - np.min(time))
+
+        plt.plot(time, values, ".", color="gray")
+
+        start = timer.time()
+        pw_fit = pw.Fit(time, values, n_breakpoints=1)
+        end = timer.time()
+        print("time 1: ", end - start)
+        pw_fit.summary()
+        pw_fit.plot_fit(color="red", linewidth=3)
+        pw_fit.plot_breakpoints()
+        pw_fit.plot_breakpoint_confidence_intervals()
+
+        start = timer.time()
+        my_pwlf = pwlf.PiecewiseLinFit(time, values, degree=1)
+        res = my_pwlf.fit(2)
+        end = timer.time()
+        print("time 2: ", end - start)
+
+        plt.plot(time, my_pwlf.predict(time), color="green", linewidth=3)
+        
+        #plt.plot(time, values)
+        plt.show()
+    exit()
+
+    total_smoothed_values = []
+    return total_smoothed_values
 
 # Get params
 result = df
 window, order, offset = kargs["window"], kargs["order"], kargs["offset"]
 col_name, output_col_name, fixed_window = kargs["col_to_smooth"], kargs["output_col_name"], kargs["fixed_window"]
 values_to_smooth = df[col_name].values
+acquisition_time = df["AcquisitionTime"].values
 
 # Prepare data : remove spikes and split silo fillings
 spike_size_percent, fill_percent = 0.05, 0.2
 values_to_smooth = remove_spikes(values_to_smooth, spike_size_percent)
-temp_splits = split_fills(values_to_smooth, fill_percent)
-splits = []
-for split in temp_splits:
-    splits.append(remove_spikes(split, spike_size_percent))
+time_splits, v_splits = split_fills(acquisition_time, values_to_smooth, fill_percent)
+values_splits = []
+for split in v_splits:
+    values_splits.append(remove_spikes(split, spike_size_percent))
 
-tot = 0
-for sp in splits:
-    plt.plot(range(tot, tot+len(sp)), sp)
-    tot += len(sp)
+"""
+# Plot splits for debug
+for t_sp, v_sp in zip(time_splits, values_splits):
+    plt.plot(t_sp, v_sp)
 plt.show()
+exit()
+"""
 
-# Run algo on each split
-splits_smoothed_values = []
-splits_nb_points_used = []
-for values in splits:
-    smoothed_values = np.zeros_like(values)
-    nb_points_used = np.zeros_like(values, dtype=np.int32)
-    for i in range(len(values)):
-        smoothed_values[i], nb_points_used[i] = savgol(values[max(0, i-window+1):i+1], window, order, offset, fixed_window)
-    splits_smoothed_values.append(smoothed_values)
-    splits_nb_points_used.append(nb_points_used)
-smoothed_values = np.concatenate(splits_smoothed_values)
-nb_points_used = np.concatenate(splits_nb_points_used)
+# Run savgol algo on each split
+smoothed_values, nb_points_used = algo_savgol(values_splits)
+
+# Run regression algo on each split
+smoothed_values = algo_regressions(time_splits, values_splits)
 
 result[output_col_name] = smoothed_values
 result["nb_points_used"] = nb_points_used
 
-print(smoothed_values.shape)
-print(df[col_name].values.shape)
-print(nb_points_used.shape)
+#### TEMP
 plt.plot(smoothed_values)
 plt.plot(result[output_col_name], label="Local smoothed values")
 plt.legend(loc="best")
