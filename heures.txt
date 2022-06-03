@@ -79,3 +79,13 @@
 1er juin 2022:
 4h
 - Terminer l'implémentation de la réduction des spikes et du splitting des remplissages de silo.
+
+2 juin 2022:
+2h
+- Meeting pour discuter de l'implémentation (et de la combinaison) des algos de Sherif et du mien
+- Début de l'implémentation de l'algo de régression dans le plugin python
+
+3 juin 2022:
+4h
+- Implémenter l'algorithme de "piecewise regression" en python
+    - Difficulté: l'implémenter sans l'ajout de librairie à installer sur Azure Data Explorer par simplicité

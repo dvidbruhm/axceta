@@ -1,3 +1,32 @@
+from scipy import optimize
+
+def segments_fit(X, Y, count):
+    xmin = X.min()
+    xmax = X.max()
+
+    seg = np.full(count - 1, (xmax - xmin) / count)
+
+    px_init = np.r_[np.r_[xmin, seg].cumsum(), xmax]
+    py_init = np.array([Y[np.abs(X - x) < (xmax - xmin) * 0.01].mean() for x in px_init])
+
+    def func(p):
+        seg = p[:count - 1]
+        py = p[count - 1:]
+        px = np.r_[np.r_[xmin, seg].cumsum(), xmax]
+        return px, py
+
+    def err(p):
+        px, py = func(p)
+        Y2 = np.interp(X, px, py)
+        return np.mean((Y - Y2)**2)
+
+    r = optimize.minimize(err, x0=np.r_[seg, py_init], method='Nelder-Mead')
+    px, py = func(r.x)
+    Y_pred = np.interp(X, px, py)
+    return Y_pred
+
+
+
 def gram_poly(i, m, k, s):
     if k > 0:
         grampoly = (4 * k - 2) / (k * (2 * m - k + 1)) * (i * gram_poly(i, m, k - 1, s) + s * gram_poly(i, m, k - 1, s - 1)) - ((k - 1) * (2 * m + k)) / (k * (2 * m - k + 1)) * gram_poly(i, m, k - 2, s)
@@ -64,7 +93,7 @@ def remove_spikes(values: np.ndarray, spike_size_percent: float):
 
     return values
 
-def split_fills(values: np.ndarray, threshold_percent: float):
+def split_fills(times: np.ndarray, values: np.ndarray, threshold_percent: float):
     nb_prev_data = 5
     split_points = [0]
     for i in range(nb_prev_data, len(values)):
@@ -78,12 +107,17 @@ def split_fills(values: np.ndarray, threshold_percent: float):
     if len(split_points) > 0 and split_points[-1] != len(values) - 1:
         split_points.append(len(values) - 1)
 
-    splits = []
+    values_splits = []
+    time_splits = []
     for i in range(1, len(split_points)):
-        sp = values[split_points[i-1]:min(split_points[i], len(values))]
-        splits.append(np.array(sp))
-    splits[-1] = np.append(splits[-1], splits[-1][-1])
-    return splits
+        val_sp = values[split_points[i-1]:min(split_points[i], len(values))]
+        time_sp = times[split_points[i-1]:min(split_points[i], len(values))]
+        values_splits.append(np.array(val_sp))
+        time_splits.append(np.array(time_sp))
+    values_splits[-1] = np.append(values_splits[-1], values_splits[-1][-1])
+    time_splits[-1] = np.append(time_splits[-1], time_splits[-1][-1])
+
+    return time_splits, values_splits
 
 
 def savgol(values: np.ndarray, window: int, order: int, offset: int, fixed_window: bool = False):
@@ -116,36 +150,86 @@ def savgol(values: np.ndarray, window: int, order: int, offset: int, fixed_windo
     return filtered_y[-1], window
 
 
+def algo_savgol(values_splits):
+    """ Function that computes the sav gol algo on each split and returns
+        an array of the same dimension as the input"""
+    splits_smoothed_values = []
+    splits_nb_points_used = []
+
+    for values in values_splits:
+        smoothed_values = np.zeros_like(values)
+        nb_points_used = np.zeros_like(values, dtype=np.int32)
+
+        for i in range(len(values)):
+            smoothed_values[i], nb_points_used[i] = savgol(values[max(0, i-window+1):i+1], window, order, offset, fixed_window)
+
+        splits_smoothed_values.append(smoothed_values)
+        splits_nb_points_used.append(nb_points_used)
+
+    total_smoothed_values = np.concatenate(splits_smoothed_values)
+    total_nb_points_used = np.concatenate(splits_nb_points_used)
+
+    return total_smoothed_values, total_nb_points_used
+
+
+def algo_regressions(time_splits, values_splits):
+    """ Function that computes the multiline (piecewise) regressions algo on
+        each split and returns an array of the same dimension as the input"""
+    splits_smoothed_values = []
+
+    for time, values in zip(time_splits, values_splits):
+        # If not enough data in split, do not smooth and return original values
+        if len(values) < 5:
+            splits_smoothed_values.append(values)
+            continue
+
+        # Transform time to float values to pass to regressor fit
+        time = time.astype(np.float)
+        time = (time - np.min(time)) / (np.max(time) - np.min(time))
+
+        # Fit piecewise regression
+        smoothed_values = segments_fit(time, values, 2)
+
+        # Combine regression results with original data
+        smoothed_values = (smoothed_values * 4 + values) / 5
+        splits_smoothed_values.append(smoothed_values)
+
+        #plt.plot(time, smoothed_values, color="green", linewidth=2)
+        #plt.plot(time, values, ".", color="gray")
+        #plt.show()
+
+    total_smoothed_values = np.concatenate(splits_smoothed_values)
+
+    return total_smoothed_values
+
+
 # Reorder table by date to make sure it is always correct
 df["AcquisitionTime"] = pd.to_datetime(df["AcquisitionTime"])
 df = pd.DataFrame(df.sort_values(by="AcquisitionTime"))
 
 # Get params
 result = df
-window, order, offset = kargs["window"], kargs["order"], kargs["offset"]
-col_name, output_col_name, fixed_window = kargs["col_to_smooth"], kargs["output_col_name"], kargs["fixed_window"]
+window, order, offset, savgol_weight = kargs["window"], kargs["order"], kargs["offset"], kargs["savgol_weight"]
+col_name, fixed_window = kargs["col_to_smooth"], kargs["fixed_window"]
 values_to_smooth = df[col_name].values
+acquisition_time = df["AcquisitionTime"].values
 
 # Prepare data : remove spikes and split silo fillings
 spike_size_percent, fill_percent = 0.05, 0.2
 values_to_smooth = remove_spikes(values_to_smooth, spike_size_percent)
-temp_splits = split_fills(values_to_smooth, fill_percent)
-splits = []
-for split in temp_splits:
-    splits.append(remove_spikes(split, spike_size_percent))
+time_splits, v_splits = split_fills(acquisition_time, values_to_smooth, fill_percent)
+values_splits = []
+for split in v_splits:
+    values_splits.append(remove_spikes(split, spike_size_percent))
 
-# Run algo on each split
-splits_smoothed_values = []
-splits_nb_points_used = []
-for values in splits:
-    smoothed_values = np.zeros_like(values)
-    nb_points_used = np.zeros_like(values, dtype=np.int32)
-    for i in range(len(values)):
-        smoothed_values[i], nb_points_used[i] = savgol(values[max(0, i-window+1):i+1], window, order, offset, fixed_window)
-    splits_smoothed_values.append(smoothed_values)
-    splits_nb_points_used.append(nb_points_used)
-smoothed_values = np.concatenate(splits_smoothed_values)
-nb_points_used = np.concatenate(splits_nb_points_used)
+# Run savgol algo on each split
+smoothed_values_savgol, nb_points_used = algo_savgol(values_splits)
 
-result[output_col_name] = smoothed_values
+# Run regression algo on each split
+smoothed_values_regression = algo_regressions(time_splits, values_splits)
+
+# Assign new columns for the smoothed data to the result DataFrame as output
+result["smoothed_savgol"] = smoothed_values_savgol
 result["nb_points_used"] = nb_points_used
+result["smoothed_regression"] = smoothed_values_regression
+result["smoothed_combined"] = (smoothed_values_regression * (1 - savgol_weight)) + (smoothed_values_savgol * savgol_weight)
