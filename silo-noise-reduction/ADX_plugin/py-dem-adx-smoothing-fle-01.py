@@ -7,7 +7,7 @@ def segments_fit(X, Y, count):
     seg = np.full(count - 1, (xmax - xmin) / count)
 
     px_init = np.r_[np.r_[xmin, seg].cumsum(), xmax]
-    py_init = np.array([Y[np.abs(X - x) < (xmax - xmin) * 0.01].mean() for x in px_init])
+    py_init = np.array([Y[(np.abs(X - x)).argmin()] for x in px_init])
 
     def func(p):
         seg = p[:count - 1]

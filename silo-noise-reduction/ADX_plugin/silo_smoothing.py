@@ -3,7 +3,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 kargs = {"window": 15, "order": 2, "offset": 3, "col_to_smooth": "Distance", "fixed_window": False, "savgol_weight": 0.5}
-df = pd.DataFrame(pd.read_csv("data/Avinor1483A-dashboard-test.csv"))
+df = pd.DataFrame(pd.read_csv("data/test-bug-zero.csv"))
 
 # Reorder table by date to make sure it is always correct
 df["AcquisitionTime"] = pd.to_datetime(df["AcquisitionTime"])
@@ -12,6 +12,7 @@ df = pd.DataFrame(df.sort_values(by="AcquisitionTime"))
 
 from scipy import optimize
 
+
 def segments_fit(X, Y, count):
     xmin = X.min()
     xmax = X.max()
@@ -19,7 +20,7 @@ def segments_fit(X, Y, count):
     seg = np.full(count - 1, (xmax - xmin) / count)
 
     px_init = np.r_[np.r_[xmin, seg].cumsum(), xmax]
-    py_init = np.array([Y[np.abs(X - x) < (xmax - xmin) * 0.01].mean() for x in px_init])
+    py_init = np.array([Y[(np.abs(X - x)).argmin()] for x in px_init])
 
     def func(p):
         seg = p[:count - 1]

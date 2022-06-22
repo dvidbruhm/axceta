@@ -89,3 +89,7 @@
 4h
 - Implémenter l'algorithme de "piecewise regression" en python
     - Difficulté: l'implémenter sans l'ajout de librairie à installer sur Azure Data Explorer par simplicité
+
+6 juin 2022:
+
+- Régler un bug trouvé par martin: il y avait parfois une erreur dans le calcul du "py_init" pour le calcule de la double régression lorsque qu'il n'y avait pas assez de donnée dans le spltting du fill du silo.
