@@ -91,5 +91,24 @@
     - Difficulté: l'implémenter sans l'ajout de librairie à installer sur Azure Data Explorer par simplicité
 
 6 juin 2022:
-
+3h
 - Régler un bug trouvé par martin: il y avait parfois une erreur dans le calcul du "py_init" pour le calcule de la double régression lorsque qu'il n'y avait pas assez de donnée dans le spltting du fill du silo.
+
+-----------------------------
+FACTURÉ JUSQU'ICI
+-----------------------------
+
+
+12 juillet 2022:
+3h
+- Implémenter l'application sur plusieurs silos d'un coup l'algorithme de lissage.
+
+18 juillet 2022:
+
+- Meeting de départ pour le projet des ondes ultrasons: (2h)
+    - Investiguer:
+        - 1: Oscillations présentes parfois qui ont l'air relier à la température (surtout lorsque le silo est vide?)
+        - 2: Des "drops" soudaines dans la quantité de grains assez rare mais prononcés
+        - 3: Meilleur algo que centre de masse ou front d'onde, ou bien les rafiner
+    - Présenter le format des données raw des senseurs.
+
