@@ -1,5 +1,7 @@
 # setup.py
 # Setup installation for the application
+# install with:
+# python3 -m pip install -e ".[dev]"
 
 from pathlib import Path
 
