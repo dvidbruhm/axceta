@@ -8,6 +8,8 @@ import us.plot as plot
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
+# TODO: compare row 1242 and 1243 to find why there is a 8% fill difference? (LAFONTAINE)
+
 
 @app.command()
 def plot_raw(file: Path, excel_file: Path):

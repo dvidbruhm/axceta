@@ -115,3 +115,11 @@ FACTURÉ JUSQU'ICI
 - Début de recherche de sources qui peuvent aider avec le traitement des ultrasons
 - Départ du code pour l'exploration et l'analyse des données ultrasons
 
+19 juillet 2022:
+2h
+- Recherche et lecture d'Articles (entre autres ceux publié dans le slack)
+
+20 juillet 2022:
+6h
+- Ajouter des fonctions pour comparer efficacement plusieurs ultrasons entre eux
+
