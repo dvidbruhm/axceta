@@ -27,7 +27,7 @@ class MainBangDetectorv1(object):
     def name(cls):
         return 'MainBangDetectorv1'
 
-    def process(self, data, noise_threshold):
+    def process(self, data, noise_threshold) -> dict:
 
         output = {'main_bang_start':None, 'main_bang_end':None}
 
