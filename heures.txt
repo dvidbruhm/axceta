@@ -123,3 +123,14 @@ FACTURÉ JUSQU'ICI
 6h
 - Ajouter des fonctions pour comparer efficacement plusieurs ultrasons entre eux
 
+21 juillet 2022:
+6h
+- Meeting d'équipe
+- Comparer les résultats avec les algos dans "Algorithms.py" qui sont les algos présntement utilisés
+
+22 juilet 2022:
+6h
+- Meeting Simon pour explication algo/hardware
+- Exploration données raw sur le dashboard
+    - Demande d'ajout du LoadCell dans le dashboard pour comparaison plus efficace
+- Comparaison entre la température extérieur (site gouvernement) et la température du senseur dans le silo... À continuer l'analyse
