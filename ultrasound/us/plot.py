@@ -2,6 +2,8 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
+from scipy import signal
 
 import us.algos as algos
 
@@ -9,6 +11,16 @@ import us.algos as algos
 def plot_raw_ultrasound(df: pd.DataFrame, manual_data: pd.DataFrame, show: bool = True):
     values = df["ultrasons_data"]
     plt.plot(values)
+
+    print(values.values.shape)
+    down = 10
+    downsampled_raw = signal.resample_poly(values.values.astype(float), 1, down)
+    print(downsampled_raw.shape)
+    plt.plot(downsampled_raw, "-", label="downsampled_raw")
+    plt.axvline(manual_data["TOF_ManuealReading"] / down, linestyle="dashed", color="green", label="Manual TOF")
+    plt.axvline(manual_data["TOF_ManuealReading"], linestyle="dashed", color="green", label="Manual TOF")
+    plt.show()
+    exit()
 
     plt.axvline(manual_data["TOF_ManuealReading"], linestyle="dashed", color="green", label="Manual TOF")
     cm_index = manual_data["measured_distance_in_mm"] * 2* 1000000 / 1000 / manual_data["sound_speed"]
@@ -42,7 +54,7 @@ def plot_raw_ultrasound(df: pd.DataFrame, manual_data: pd.DataFrame, show: bool 
 
 
 def plot_full_excel(df: pd.DataFrame):
-    df = df[:2534]
+    df = df[:2460]
     df = pd.DataFrame(df.sort_values(by="time"))
     plt.plot(df["time"], df["CM_vol"], label="CM Volume")
     plt.plot(df["time"], df["WF_vol"], label="WF Volume")

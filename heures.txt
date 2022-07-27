@@ -134,3 +134,21 @@ FACTURÉ JUSQU'ICI
 - Exploration données raw sur le dashboard
     - Demande d'ajout du LoadCell dans le dashboard pour comparaison plus efficace
 - Comparaison entre la température extérieur (site gouvernement) et la température du senseur dans le silo... À continuer l'analyse
+
+25 juillet 2022:
+7h
+- Meeting avec Olivier
+    - Hypothèse: lorsque température + élevé les matériaux réfléchissent +, donc le bruit de base du signal est plus élevé
+- Exploration données silo avinor 1484b: silo vide avec des oscillations
+- Début essaie 1d conv network: pytorch dataloader + dataset
+
+26 juillet 2022:
+7h
+- Implémentation model de prédiction et entrainement pour prédire le TOF à partir des ondes raw, avec pipeline fonctionnel
+
+27 juillet 2022:
+7h
+- Meeting quotidien
+- Suite implémentation model de prédiction et entrainement pour prédire le TOF à partir des ondes raw, avec pipeline fonctionnel
+    - Ajout meilleur outil pour vsualiser les résultats
+    - Fonctionne sur les dataset de GERMEC ainsi que LAFONTAINE

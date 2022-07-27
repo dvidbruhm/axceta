@@ -6,6 +6,8 @@ import pandas as pd
 import us.data as data
 import us.plot as plot
 
+import us.ml.ml as ml
+
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 # question: l'allure des 2 raw ultrasons et où arrivent les résultats du excel
@@ -49,3 +51,12 @@ def plot_dashboard_data(volumes_path: Path, temperatures_path: Path, temperature
     temperatures_extern = pd.DataFrame(pd.read_csv(temperatures_extern_path))
 
     plot.plot_dashboard_data(volumes, temperatures, temperatures_extern)
+
+
+@app.command()
+def train(data_path: Path, xls_path: Path, epochs: int, train_size: float, small_dataset: bool = False):
+    ml.train(data_path, xls_path, epochs, train_size, small_dataset)
+
+@app.command()
+def viz(model_path: Path = Path()):
+    ml.viz(model_path)
