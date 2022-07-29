@@ -152,3 +152,14 @@ FACTURÉ JUSQU'ICI
 - Suite implémentation model de prédiction et entrainement pour prédire le TOF à partir des ondes raw, avec pipeline fonctionnel
     - Ajout meilleur outil pour vsualiser les résultats
     - Fonctionne sur les dataset de GERMEC ainsi que LAFONTAINE
+
+28 juillet 2022:
+6h
+- Meeting quotidien
+- Ajout support pour tensorboard pour améliorer la visualisation des résultats
+- Obtenir et présenter des résultats de la comparaison avec les algorithmes CM et WF
+- Régler bugs pour lefaire fonctionner sur les différents datasets
+
+29 juillet 2022:
+
+- Meeting quotidien

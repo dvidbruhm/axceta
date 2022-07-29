@@ -1,6 +1,7 @@
 import os
 from glob import glob
 from pathlib import Path
+import numpy as np
 
 
 def find_last_checkpoint(logs_folder: Path = Path("us", "ml", "logs", "lightning_logs")):
@@ -10,3 +11,6 @@ def find_last_checkpoint(logs_folder: Path = Path("us", "ml", "logs", "lightning
     #latest_file = max(list_of_files, key=os.path.getctime)
     #print(latest_file)
 
+def moving_average(x, w):
+    x = np.array(x)
+    return np.convolve(x, np.ones(w), 'same') / w

@@ -54,8 +54,8 @@ def plot_dashboard_data(volumes_path: Path, temperatures_path: Path, temperature
 
 
 @app.command()
-def train(data_path: Path, xls_path: Path, epochs: int, train_size: float, small_dataset: bool = False):
-    ml.train(data_path, xls_path, epochs, train_size, small_dataset)
+def train(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool = False):
+    ml.train(data_path, xls_path, epochs, learning_rate, batch_size, kernels, train_size, small_dataset)
 
 @app.command()
 def viz(model_path: Path = Path()):

@@ -14,7 +14,6 @@ class SiloFillDataset(Dataset):
         self.silo_data = pd.DataFrame(pd.read_excel(xls_file, sheet_name="data"))[:2534].drop([47])
         self.root_dir = root_dir
         self.silo_data = self.silo_data[self.silo_data.apply(lambda x: len(pd.DataFrame(pd.read_csv(Path(self.root_dir, x["filename"].split("/")[-1])))) > 1, axis=1)].reset_index()
-        print(min([l for l in self.silo_data.apply(lambda x: len(pd.DataFrame(pd.read_csv(Path(self.root_dir, x["filename"].split("/")[-1])))), axis=1)]))
         self.min_len = min([l for l in self.silo_data.apply(lambda x: len(pd.DataFrame(pd.read_csv(Path(self.root_dir, x["filename"].split("/")[-1])))), axis=1)])
         self.silo_data = self.silo_data[self.silo_data["TOF_ManuealReading"] < 30000].reset_index()
         if small_dataset:
