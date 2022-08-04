@@ -20,14 +20,15 @@ def plot_raw_ultrasound(df: pd.DataFrame, manual_data: pd.DataFrame, show: bool 
     plt.axvline(manual_data["TOF_ManuealReading"] / down, linestyle="dashed", color="green", label="Manual TOF")
     plt.axvline(manual_data["TOF_ManuealReading"], linestyle="dashed", color="green", label="Manual TOF")
     plt.show()
-    exit()
 
+    plt.plot(downsampled_raw, "-", label="downsampled_raw")
     plt.axvline(manual_data["TOF_ManuealReading"], linestyle="dashed", color="green", label="Manual TOF")
     cm_index = manual_data["measured_distance_in_mm"] * 2* 1000000 / 1000 / manual_data["sound_speed"]
     wf_index = manual_data["wavefront_distance_in_mm"] *2*  1000000 / 1000 / manual_data["sound_speed"]
     plt.axvline(cm_index, linestyle="dashed", color="yellow", label="CM TOF")
     plt.axvline(wf_index, linestyle="dashed", color="orange", label="WF TOF")
 
+    print(values)
     noise_threshold = algos.NoiseThresholdv1().process(values)
     result_mainbang = algos.MainBangDetectorv1().process(values, noise_threshold)
 

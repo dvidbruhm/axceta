@@ -1,4 +1,61 @@
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import scipy.optimize
+
+from scipy.signal import find_peaks, find_peaks_cwt
+
+
+def denoise(data: np.ndarray, threshold: float) -> np.ndarray:
+    data[data < np.max(data) * threshold] = 0
+    return data
+
+
+def algo_v1(data: np.ndarray, plot: bool = False) -> float:
+
+    data_untouched = data.copy()
+
+    time_delay = 4000
+    #data = data / np.max(data[time_delay:])
+    data = data[time_delay:]
+    min_peak_height = 0.5 * np.max(data)
+    denoised = denoise(data.copy(), 0.1)
+
+    """
+    if plot:
+        pd_data = pd.Series(data)
+        noise_threshold = NoiseThresholdv1().process(data)
+        main_bang = MainBangDetectorv1().process(pd_data, noise_threshold)
+
+        plt.plot(denoised, color="blue")
+        plt.axvline(main_bang["main_bang_start"], color="black", label="Main bang start")
+        plt.axvline(main_bang["main_bang_end"], color="black", label="Main bang end")
+        plt.axhline(y=min_peak_height, color="black", linestyle="--")
+    """
+
+    maxs, _ = find_peaks(denoised, height=min_peak_height, width=20)
+    max_peak_i = np.argmax(denoised[maxs])
+
+
+
+    if plot:
+        plt.plot(denoised, color="blue")
+        max_peak = denoised[maxs][max_peak_i]
+        plt.plot(maxs[max_peak_i], max_peak, "o")
+
+        plt.plot(maxs, denoised[maxs], "x")
+
+    tof = np.average(maxs, weights=range(len(maxs), 0, -1))
+
+
+    #tof = denoised.dot(range(len(denoised))) / np.sum(denoised)
+
+    tof_interp = np.interp(tof, [5000, 30000], [-1, 1])
+    tof += 2000 * tof_interp
+
+    tof = (tof + time_delay) * 2
+    return tof
+
 
 class NoiseThresholdv1(object):
     def __init__(self):
@@ -137,7 +194,6 @@ class CenterOfMassv1(object):
 
         if data.sum() == 0:
             return 0
-
         return data.dot(data.index) // data.sum()
 
 class CenterOfMassLin(object):

@@ -8,6 +8,12 @@ from torchvision import transforms
 from rich import print
 
 
+class SiloFillDatasetv2(Dataset):
+    def __init__(self):
+        self.silo_data = 
+
+
+
 class SiloFillDataset(Dataset):
     def __init__(self, xls_file, root_dir, transform=None, small_dataset=False):
         print(f"Loading dataset from : [bold green]{xls_file}[/bold green]")
