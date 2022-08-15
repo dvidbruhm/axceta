@@ -1,0 +1,183 @@
+9 mai 2022:
+6h
+- Meeting initial pour lancer le projet
+    - Réduction du bruit des données (historique)
+    - Comment donner une valeur en temps réel (dernière donnée) plus fiable et moins sujette au bruit (ie. pas de valeur négative)
+    - Accès aux données: dashboard et csv des données des senseurs
+- Exploration initiale du dashboard: voir les tendances, le type de bruit dans les données
+- Préparation initiale des scripts python: bien lire et explorer les données, écrire le squelette qui permettra l'essai des techniques de lissages/réduction du bruit
+
+10 mai 2022:
+5h
+- Continuer le squelette qui permettra l'essai des techniques de lissages.
+- Meeting pour cibler les silos plus problmatiques/intéressant
+
+11 mai 2022:
+7h
+- Terminer le squelette qui permettra l'essai des techniques de lissages.
+- Premiers essais de différentes techniques sur les silos ciblés (savitsky golay)
+- Essais également de techniques de lissage en "temps réel" qui permettent de lisser la dernière valeur du senseur
+
+12 mai 2022:
+1h30
+- Transformer la distance en % du volume à partir des mesures des silos et l'implémenter
+
+13 mai 2022:
+1h
+- Transformer la distance en % du volume à partir des mesures des silos et l'implémenter
+- Régler un problème de lecture des données
+
+16 mai 2022:
+6h
+- Tester et comparer le calcul du volume avec les données du dashboard, régler le calcul pour obtenir les mêmes valeurs que le dashboard
+- Tester des algorithmes de lissages, et implémenter un algorithme en "temps réel" : savitsky-golay filter en temps réel. Le temps réel permet que le lissage ne change pas à l'ajout de nouvelles données
+
+17 mai 2022:
+5h
+
+18 mai 2022:
+7h
+- Quelques problèmes réglés avec un "resampling" pour avoir des données espacées également dans le temps.
+- Implémenter un algorithme de détection des remplissages pour avoir un meilleur lissage.
+- Implémenter un algorithme de régression linéaire en temps réel et le tester dans plusieurs cas.
+
+19 mai 2022:
+5h
+- Implémenter un algorithme de régression polynomiale en temps réel et tester si les résultats sont mieux que la régression linéaire.
+- Meeting pour montrer les lissages temps réel
+- Sav gol temp réel est sélectionné pour être inséré dans le pipeline
+
+25 mai 2022:
+6h
+- Écrire la fonction comme python plugin dans Azure Data Explorer
+    - Utiliser le moins de dépendance possible pour faciliter l'intégration
+    - Tester les résultats sur les données des silos pour être certains que tout est beau
+
+26 mai 2022:
+5h
+- Terminer la fonction du plugin python
+- Meeting pour discuter des détails d'intégration avec la plateforme
+    - Ajouter le nom de la colonne à lisser en paramètre d'entrée
+    - Ajouter un paramètre "fixed_window" qui décide si on veut lisser les premières données (lorsqu'on est rendu moins loin que la taille du window") en entrée
+    - Ajouter une colonne qui donne le nombre de points utilisés pour le lissage
+- Ajouter les détails au plugin
+
+30 mai 2022:
+5h
+- Meeting pour discuter de problèmes du smoothing dans le dashboard et pour comparer les résultats
+    - Petit problème dans la requête sur azure data explorer
+- Comparer les données du dashboard avec ceux que j'obtiens en local : Différence dans le smoothing? 
+    - Le lissage n'est pas le même: dans le dashboard le lissage se fait d'avance, ce qui n'est pas sensé être le cas.
+
+31 mai 2022:
+6h
+- Comprendre la différence entre le smoothing du dashboard et le mien en local (voir fichier python de leur cloud et le csv)
+    - Les données étaient feedé à l'envers dans l'algo
+- Implémenter: enlever les spikes dans les données raw
+- Implémenter le splitting des remplissages lorsqu'il y a une grande augmentation du volume
+
+1er juin 2022:
+4h
+- Terminer l'implémentation de la réduction des spikes et du splitting des remplissages de silo.
+
+2 juin 2022:
+2h
+- Meeting pour discuter de l'implémentation (et de la combinaison) des algos de Sherif et du mien
+- Début de l'implémentation de l'algo de régression dans le plugin python
+
+3 juin 2022:
+4h
+- Implémenter l'algorithme de "piecewise regression" en python
+    - Difficulté: l'implémenter sans l'ajout de librairie à installer sur Azure Data Explorer par simplicité
+
+6 juin 2022:
+3h
+- Régler un bug trouvé par martin: il y avait parfois une erreur dans le calcul du "py_init" pour le calcule de la double régression lorsque qu'il n'y avait pas assez de donnée dans le spltting du fill du silo.
+
+-----------------------------
+FACTURÉ JUSQU'ICI
+-----------------------------
+
+
+12 juillet 2022:
+3h
+- Implémenter l'application sur plusieurs silos d'un coup l'algorithme de lissage.
+
+18 juillet 2022:
+7h
+- Meeting de départ pour le projet des ondes ultrasons: (2h)
+    - Investiguer:
+        - 1: Oscillations présentes parfois qui ont l'air relier à la température (surtout lorsque le silo est vide?)
+        - 2: Des "drops" soudaines dans la quantité de grains assez rare mais prononcés
+        - 3: Meilleur algo que centre de masse ou front d'onde, ou bien les rafiner
+    - Présenter le format des données raw des senseurs.
+- Lecture de l'article sur les ultrasons
+- Début de recherche de sources qui peuvent aider avec le traitement des ultrasons
+- Départ du code pour l'exploration et l'analyse des données ultrasons
+
+19 juillet 2022:
+2h
+- Recherche et lecture d'Articles (entre autres ceux publié dans le slack)
+
+20 juillet 2022:
+6h
+- Ajouter des fonctions pour comparer efficacement plusieurs ultrasons entre eux
+
+21 juillet 2022:
+6h
+- Meeting d'équipe
+- Comparer les résultats avec les algos dans "Algorithms.py" qui sont les algos présntement utilisés
+
+22 juilet 2022:
+6h
+- Meeting Simon pour explication algo/hardware
+- Exploration données raw sur le dashboard
+    - Demande d'ajout du LoadCell dans le dashboard pour comparaison plus efficace
+- Comparaison entre la température extérieur (site gouvernement) et la température du senseur dans le silo... À continuer l'analyse
+
+25 juillet 2022:
+7h
+- Meeting avec Olivier
+    - Hypothèse: lorsque température + élevé les matériaux réfléchissent +, donc le bruit de base du signal est plus élevé
+- Exploration données silo avinor 1484b: silo vide avec des oscillations
+- Début essaie 1d conv network: pytorch dataloader + dataset
+
+26 juillet 2022:
+7h
+- Implémentation model de prédiction et entrainement pour prédire le TOF à partir des ondes raw, avec pipeline fonctionnel
+
+27 juillet 2022:
+7h
+- Meeting quotidien
+- Suite implémentation model de prédiction et entrainement pour prédire le TOF à partir des ondes raw, avec pipeline fonctionnel
+    - Ajout meilleur outil pour vsualiser les résultats
+    - Fonctionne sur les dataset de GERMEC ainsi que LAFONTAINE
+
+28 juillet 2022:
+6h
+- Meeting quotidien
+- Ajout support pour tensorboard pour améliorer la visualisation des résultats
+- Obtenir et présenter des résultats de la comparaison avec les algorithmes CM et WF
+- Régler bugs pour lefaire fonctionner sur les différents datasets
+
+29 juillet 2022:
+5h
+- Meeting quotidien
+
+1 aout 2022:
+3h
+
+2 aout 2022:
+6h
+
+3 aout 2022:
+6h
+
+4 aout 2022:
+6h
+- Add quality index to raw ultrasound data
+
+-- Vacances --
+
+15 aout 2022:
+
