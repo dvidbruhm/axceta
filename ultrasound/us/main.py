@@ -4,6 +4,7 @@ import typer
 import pandas as pd
 import json
 import matplotlib.pyplot as plt
+import numpy as np
 from rich import print
 
 import us.data as data
@@ -70,7 +71,6 @@ def plot_dashboard_data(volumes_path: Path, temperatures_path: Path, temperature
     plot.plot_dashboard_data(volumes, temperatures, temperatures_extern)
 
 
-import numpy as np
 @app.command()
 def raw_ultrasound_algo(data_path: Path):
     """Takes a parquet file as input (not a csv). Use csv_to_parquet command to convert csv to parquet file"""
@@ -86,7 +86,7 @@ def raw_ultrasound_algo(data_path: Path):
     df_sorted["cdm_ToF2"] = df_sorted.apply(lambda x: x["cdm_ToF"] + 2000 * np.interp(x["cdm_ToF"], [5000, 30000], [-1, 1]), axis=1)
 
     plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF"], color="orange", label="CDM")
-    plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF2"], color="blue", label="CDM")
+    #plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF2"], color="blue", label="CDM")
     plt.plot(range(len(df_sorted)), df_sorted["wf_ToF"], color="black", label="WF")
     plt.plot(range(len(df_sorted)), df_sorted["LC_ToF"], color="magenta", label="LC")
     plt.plot(range(len(df_sorted)), df_sorted["output_TOF_v1"], color="red", label="output v1")
@@ -116,6 +116,43 @@ def raw_ultrasound_algo(data_path: Path):
 
 
 
+@app.command()
+def compute_raw_data_quality(data_path: Path):
+    plt.rcParams.update({'font.size': 22})
+    df = data.load_raw_LC_data(data_path)
+    
+    df_LC_sorted = pd.DataFrame(df.sort_values(by="LC_AcquisitionTime"))
+    df_sorted = pd.DataFrame(df_LC_sorted.sort_values(by="AcquisitionTime"))
+    df_sorted = pd.DataFrame(df_sorted.drop_duplicates(subset="AcquisitionTime", keep="last")).reset_index()
+
+    df_sorted["raw_data_quality"] = df_sorted.apply(lambda x: algos.raw_data_quality(x["sensor_raw_data"]), axis=1)
+    def quality_color(quality):
+        if quality < 1.5:
+            return "red"
+        if quality < 3.5:
+            return "orange"
+        return "green"
+    df_sorted["quality_color"] = df_sorted.apply(lambda x: quality_color(x["raw_data_quality"]), axis=1)
+
+    plt.plot(df_sorted["LC_AcquisitionTime"], df_sorted["LC_distanceFromWeight"], color="gray")
+    plt.scatter(df_sorted["LC_AcquisitionTime"], df_sorted["LC_distanceFromWeight"], s=50, c=df_sorted["quality_color"])
+    plt.ylabel("LoadCell distance [mm]")
+    plt.xlabel("Acquisition Time")
+    plt.axhline(4, color="gray", linestyle="--")
+    plt.title(data_path)
+    plt.show()
+
+
+    print(len(df_sorted))
+    
+    indices_to_plot = [60, 150, 280, 299]
+    indices_to_plot = [300, 160, 37]
+    for plot_index, i in enumerate(indices_to_plot):
+        series = df_sorted.loc[i]
+        plt.subplot(len(indices_to_plot), 1, plot_index+1)
+        algos.raw_data_quality(series["sensor_raw_data"], plot=True)
+        plt.title(i)
+    plt.show()
 
 
 ### ML

@@ -10,7 +10,7 @@ from rich import print
 
 class SiloFillDatasetv2(Dataset):
     def __init__(self):
-        self.silo_data = 
+        self.silo_data = None
 
 
 
