@@ -4,7 +4,7 @@ from pytorch_lightning import LightningModule, Trainer, seed_everything
 import torch
 from torch import nn
 from torchvision import transforms
-from torch.utils.data import DataLoader, random_split, Subset
+from torch.utils.data import DataLoader, random_split, Subset, Dataset
 from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBar
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -19,21 +19,19 @@ warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 
 class SiloFillRegressor(LightningModule):
-    def __init__(self, data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels, small_dataset: bool = False, train_size: float = 0.5):
+    def __init__(self, dataset: Dataset, epochs: int, learning_rate: float, batch_size: int, kernels, train_size: float = 0.5, paths: List[Path] = []):
         super().__init__()
 
-        self.data_path = data_path
-        self.xls_path = xls_path
-        self.small_dataset = small_dataset
-        self.trans = transforms.Compose([data.Downsample(10), data.ToTensor()])
+        self.dataset = dataset
         self.train_size = train_size
 
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.kernels = kernels
+        self.paths = paths
 
-        self.save_hyperparameters(logger=True, )
-        print(f"Hyperparameters : \n[bold green]{self.hparams}[/bold green]")
+        self.save_hyperparameters(logger=True, ignore=["dataset"])
+        print(f"\nHyperparameters : \n[bold green]{self.hparams}[/bold green]\n")
         self.conv1 = nn.Conv1d(in_channels=self.kernels[0], out_channels=self.kernels[1], kernel_size=5, stride=2)
         self.leaky1 = nn.LeakyReLU(0.2, inplace=True)
         self.conv2 = nn.Conv1d(in_channels=self.kernels[1], out_channels=self.kernels[2], kernel_size=5, stride=2)
@@ -99,7 +97,7 @@ class SiloFillRegressor(LightningModule):
 
     def setup(self, stage=None):
         if stage == "fit" or stage is None:
-            _, self.silo_train, self.silo_val = data.get_train_val_dataset(self.xls_path, self.data_path, self.trans, self.small_dataset, self.train_size)
+            _, self.silo_train, self.silo_val = data.get_train_val_dataset(self.dataset, self.train_size)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -115,33 +113,50 @@ class SiloFillRegressor(LightningModule):
         pass
 
 
-def train(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool):
+def train_excel(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool):
     seed_everything(1234)
+
+    trans = transforms.Compose([data.Downsample(10), data.ToTensor()])
+    silo_dataset = data.SiloFillDatasetExcel(xls_file=xls_path, root_dir=data_path, transform=trans, small_dataset=small_dataset)
+    paths = [data_path, xls_path]
+    train(silo_dataset, epochs, learning_rate, batch_size, kernels, train_size, paths, "silo_tof_excel")
+
+
+def train_parquet(data_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool):
+    seed_everything(1234)
+    trans = transforms.Compose([data.Downsample(10), data.ToTensor()])
+    silo_dataset = data.SiloFillDatasetParquet(data_path, trans, small_dataset)
+    paths = [data_path]
+    train(silo_dataset, epochs, learning_rate, batch_size, kernels, train_size, paths, "silo_tof_parquet")
+
+
+def train(dataset: Dataset, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, paths: List[Path], logger_name: str):
+
     model = SiloFillRegressor(
-        data_path, 
-        xls_path, 
+        dataset,
         epochs=epochs,
         learning_rate=learning_rate,
         batch_size=batch_size,
         kernels=kernels,
-        small_dataset=small_dataset, 
-        train_size=train_size
+        train_size=train_size,
+        paths=paths
     )
 
     early_stop_callback = EarlyStopping(monitor="val_loss", mode="min", patience=5)
+
     trainer = Trainer(
         accelerator="auto",
         devices=1 if torch.cuda.is_available() else None,
         max_epochs=epochs,
         callbacks=[RichProgressBar()],
-        logger=TensorBoardLogger(str(Path("us", "ml", "logs")), default_hp_metric=False),
+        logger=TensorBoardLogger(str(Path("us", "ml", "logs")), name=logger_name, default_hp_metric=False),
         log_every_n_steps=1
     )
 
     trainer.fit(model)
 
 
-def viz(model_path: Path):
+def viz_excel(model_path: Path):
     from us.plot import plot_full_excel
     from us.data import load_excel_data
     import pandas as pd

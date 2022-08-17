@@ -180,4 +180,5 @@ FACTURÉ JUSQU'ICI
 -- Vacances --
 
 15 aout 2022:
-
+4h
+- Add quality index of LAfontaine/Germec silos to Confluence

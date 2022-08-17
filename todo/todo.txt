@@ -1,2 +1,4 @@
 
 Automatically flag bad raw data reading vs good reading to check at which distance readings become bad
+Visualize parquet model results to see if training works
+Train longer model and with all parquets files

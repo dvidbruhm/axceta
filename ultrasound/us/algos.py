@@ -6,6 +6,14 @@ import scipy.optimize
 from scipy.signal import find_peaks, find_peaks_cwt
 
 
+def quality_color(quality):
+    if quality < 1.5:
+        return "red"
+    if quality < 3.5:
+        return "orange"
+    return "green"
+
+
 def raw_data_quality(data: np.ndarray, plot=False) -> float:
     min_peak_height = 40
 

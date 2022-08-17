@@ -126,13 +126,7 @@ def compute_raw_data_quality(data_path: Path):
     df_sorted = pd.DataFrame(df_sorted.drop_duplicates(subset="AcquisitionTime", keep="last")).reset_index()
 
     df_sorted["raw_data_quality"] = df_sorted.apply(lambda x: algos.raw_data_quality(x["sensor_raw_data"]), axis=1)
-    def quality_color(quality):
-        if quality < 1.5:
-            return "red"
-        if quality < 3.5:
-            return "orange"
-        return "green"
-    df_sorted["quality_color"] = df_sorted.apply(lambda x: quality_color(x["raw_data_quality"]), axis=1)
+    df_sorted["quality_color"] = df_sorted.apply(lambda x: algos.quality_color(x["raw_data_quality"]), axis=1)
 
     plt.plot(df_sorted["LC_AcquisitionTime"], df_sorted["LC_distanceFromWeight"], color="gray")
     plt.scatter(df_sorted["LC_AcquisitionTime"], df_sorted["LC_distanceFromWeight"], s=50, c=df_sorted["quality_color"])
@@ -155,12 +149,50 @@ def compute_raw_data_quality(data_path: Path):
     plt.show()
 
 
+@app.command()
+def compute_raw_data_quality_excel(xls_path: Path, data_dir: Path):
+    from torchvision import transforms
+    import us.ml.data as data
+
+    full_silo_dataset = data.SiloFillDatasetExcel(xls_file=xls_path, root_dir=data_dir, transform=None, target_name="wavefront_distance_in_mm")
+
+    qualities = []
+    quality_colors = []
+    targets = []
+    for i in range(len(full_silo_dataset)):
+        q = algos.raw_data_quality(full_silo_dataset[i][0])
+        qualities.append(q)
+        quality_colors.append(algos.quality_color(q))
+        targets.append(full_silo_dataset[i][1])
+
+    plt.plot(targets, color="gray")
+    plt.scatter(range(len(full_silo_dataset)),targets, s=50, c=quality_colors)
+    plt.ylabel("Wavefront distance [mm]")
+    plt.xlabel("Acquisition Time")
+    plt.axhline(4000, color="gray", linestyle="--")
+    plt.title(xls_path)
+    plt.show()
+
+
+    indices_to_plot = [60, 150, 280, 299]
+    indices_to_plot = [300, 160, 37]
+    for plot_index, i in enumerate(indices_to_plot):
+        series = full_silo_dataset[i][0]
+        plt.subplot(len(indices_to_plot), 1, plot_index+1)
+        algos.raw_data_quality(series, plot=True)
+        plt.title(i)
+    plt.show()
+
 ### ML
 
 @app.command()
-def train(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool = False):
-    ml.train(data_path, xls_path, epochs, learning_rate, batch_size, kernels, train_size, small_dataset)
+def train_excel(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool = False):
+    ml.train_excel(data_path, xls_path, epochs, learning_rate, batch_size, kernels, train_size, small_dataset)
 
 @app.command()
-def viz(model_path: Path = Path()):
-    ml.viz(model_path)
+def train_parquet(data_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool = False):
+    ml.train_parquet(data_path, epochs, learning_rate, batch_size, kernels, train_size, small_dataset)
+
+@app.command()
+def viz_excel(model_path: Path = Path()):
+    ml.viz_excel(model_path)
