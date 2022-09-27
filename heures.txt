@@ -150,7 +150,7 @@ FACTURÉ JUSQU'ICI
 7h
 - Meeting quotidien
 - Suite implémentation model de prédiction et entrainement pour prédire le TOF à partir des ondes raw, avec pipeline fonctionnel
-    - Ajout meilleur outil pour vsualiser les résultats
+    - Ajout meilleur outil pour visualiser les résultats
     - Fonctionne sur les dataset de GERMEC ainsi que LAFONTAINE
 
 28 juillet 2022:
@@ -182,3 +182,96 @@ FACTURÉ JUSQU'ICI
 15 aout 2022:
 4h
 - Add quality index of LAfontaine/Germec silos to Confluence
+
+16 aout 2022:
+6h
+- Adapt machine learning models to new Avinor data with load cell as true target
+
+17 aout 2022:
+0h
+
+18 aout 2022:
+4h
+- Continue machine learning models to new avinor data
+
+19 aout 2022:
+4h
+- Same, continue machine learning testing on more data
+
+29 aout 2022:
+5h
+- Continue machine learning model
+
+---------- FACTURÉ ------------
+
+30 aout 2022:
+5h
+- Problem in training, is the target LC ToF good? Too high?
+- Add vizualisation function tu view training results
+
+31 aout 2022:
+4h
+- Finalize basic training on Avinor dataset, with first good results
+
+1 sept 2022:
+4h
+- Write hyperparameter search code
+
+2 sept 2022:
+4h
+- Finish hyperparam search code and launch experiments
+
+6 sept 2022:
+6h:
+- Analyse data taken with different sensor configs:
+    - There is an effect on the readings with different parameters, but no config gives better results >4m
+
+7 sept 2022:
+5h
+- Analyse results of hyperparameter search
+
+8 sept 2022:
+5h
+- Deux meetings:
+    - Meeting normal
+    - Meeting avec motsai: essaie d'un de leur ancien capteur pour comparer les résultats
+- Vérifier la différence entre le LoadCell ToF et le peak de l'onde raw qui est toujours décalé
+
+9 sept 2022:
+3h
+
+
+12 sept 2022:
+1h
+- Juste meeting, attente données corrigées du LoadCell
+
+13 sept 2022:
+5h
+- Retrain hyperparameter search because LoadCell ToF values were not good (rounded to the meter)
+
+14 sept 2022:
+4h
+- Same ^
+
+15 sept 2022:
+5h
+- reanalyse hyperparameter search results
+
+
+19 sept 2022:
+6h
+- Write python plugin for ADX to compute quality index on a batch of data
+- Run model trained on avinor silos, on LAFONTAINE silo -> bad results
+
+20 sept 2022:
+3h
+- Verify results on LAFONTAINE and GERMEC
+
+21 sept 2022:
+2h
+- Verify old data : load cell vs peak of raw data
+
+22 sept 2022:
+4h
+- Start project time series forecasting to predict next silo fill
+- Compare hand taken data and pictures with LoadCell data

@@ -6,7 +6,7 @@ kargs = {"window": 15, "order": 2, "offset": 3, "col_to_smooth": "Distance", "fi
 df = pd.DataFrame(pd.read_csv("data/batch_silo_test.csv"))
 
 
-
+"""
 from scipy import optimize
 
 
@@ -34,7 +34,7 @@ def segments_fit(X, Y, count):
     px, py = func(r.x)
     Y_pred = np.interp(X, px, py)
     return Y_pred
-
+"""
 
 
 def gram_poly(i, m, k, s):
@@ -181,10 +181,8 @@ def algo_savgol(values_splits):
 
     return total_smoothed_values, total_nb_points_used
 
-
+"""
 def algo_regressions(time_splits, values_splits):
-    """ Function that computes the multiline (piecewise) regressions algo on
-        each split and returns an array of the same dimension as the input"""
     splits_smoothed_values = []
 
     for time, values in zip(time_splits, values_splits):
@@ -211,7 +209,7 @@ def algo_regressions(time_splits, values_splits):
     total_smoothed_values = np.concatenate(splits_smoothed_values)
 
     return total_smoothed_values
-
+"""
 
 locations = df["LocationName"].unique()
 result = []
@@ -242,26 +240,24 @@ for location in locations:
     smoothed_values_savgol, nb_points_used = algo_savgol(values_splits)
 
     # Run regression algo on each split
-    smoothed_values_regression = algo_regressions(time_splits, values_splits)
+    #smoothed_values_regression = algo_regressions(time_splits, values_splits)
 
     # Assign new columns for the smoothed data to the result DataFrame as output
     temp_result["smoothed_savgol"] = smoothed_values_savgol
     temp_result["nb_points_used"] = nb_points_used
-    temp_result["smoothed_regression"] = smoothed_values_regression
-    temp_result["smoothed_combined"] = (smoothed_values_regression * (1 - savgol_weight)) + (smoothed_values_savgol * savgol_weight)
+    #temp_result["smoothed_regression"] = smoothed_values_regression
+    #temp_result["smoothed_combined"] = (smoothed_values_regression * (1 - savgol_weight)) + (smoothed_values_savgol * savgol_weight)
 
     result.append(temp_result)
 
     #### TEMP
-    """
     plt.plot(temp_result[col_name], label="orig")
     plt.plot(temp_result["smoothed_savgol"], label="savgol")
-    plt.plot(temp_result["smoothed_regression"], label="reg")
-    plt.plot(temp_result["smoothed_combined"], label="comb")
+    #plt.plot(temp_result["smoothed_regression"], label="reg")
+    #plt.plot(temp_result["smoothed_combined"], label="comb")
     plt.legend(loc="best")
     plt.title(f"{location}, tot:{len(locations)}")
     plt.show()
-    """
 
 result = pd.concat(result)
 result.to_csv("data/batch_silo_test_smoothed.csv", index=False)

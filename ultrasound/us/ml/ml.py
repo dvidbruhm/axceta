@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from pytorch_lightning import LightningModule, Trainer, seed_everything
 import torch
 from torch import nn
@@ -10,6 +10,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 import matplotlib.pyplot as plt
 from rich import print
+import numpy as np
 
 import us.ml.data as data
 import us.ml.utils as utils
@@ -18,12 +19,26 @@ import warnings
 warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 
+class RMSLELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        
+    def forward(self, pred, actual):
+        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
+
+
 class SiloFillRegressor(LightningModule):
-    def __init__(self, dataset: Dataset, epochs: int, learning_rate: float, batch_size: int, kernels, train_size: float = 0.5, paths: List[Path] = []):
+    def __init__(self, dataset_params: Dict, epochs: int, learning_rate: float, batch_size: int, kernels, loss_fn: str, dataset: Dataset = None, train_size: float = 0.5, paths: List[Path] = []):
         super().__init__()
 
         self.dataset = dataset
+        self.dataset_params = dataset_params
         self.train_size = train_size
+
+        self.loss_func = nn.MSELoss()
+        if loss_fn == "rmsle":
+            self.loss_func = RMSLELoss()
 
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -31,7 +46,6 @@ class SiloFillRegressor(LightningModule):
         self.paths = paths
 
         self.save_hyperparameters(logger=True, ignore=["dataset"])
-        print(f"\nHyperparameters : \n[bold green]{self.hparams}[/bold green]\n")
         self.conv1 = nn.Conv1d(in_channels=self.kernels[0], out_channels=self.kernels[1], kernel_size=5, stride=2)
         self.leaky1 = nn.LeakyReLU(0.2, inplace=True)
         self.conv2 = nn.Conv1d(in_channels=self.kernels[1], out_channels=self.kernels[2], kernel_size=5, stride=2)
@@ -66,8 +80,7 @@ class SiloFillRegressor(LightningModule):
         return x
 
     def loss_fn(self, y_true, y_pred):
-        mse_loss = nn.MSELoss()
-        return mse_loss(y_pred, y_true)
+        return self.loss_func(y_pred, y_true)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -113,31 +126,41 @@ class SiloFillRegressor(LightningModule):
         pass
 
 
-def train_excel(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool):
+def train_excel(data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], loss_fn: str, train_size: float, small_dataset: bool):
     seed_everything(1234)
 
     trans = transforms.Compose([data.Downsample(10), data.ToTensor()])
     silo_dataset = data.SiloFillDatasetExcel(xls_file=xls_path, root_dir=data_path, transform=trans, small_dataset=small_dataset)
     paths = [data_path, xls_path]
-    train(silo_dataset, epochs, learning_rate, batch_size, kernels, train_size, paths, "silo_tof_excel")
+    dataset_params = {"trans": trans, "train_size": train_size, "small_dataset": small_dataset}
+    train(silo_dataset, dataset_params, epochs, learning_rate, batch_size, kernels, loss_fn, train_size, paths, "silo_tof_excel")
 
 
-def train_parquet(data_path: Path, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, small_dataset: bool):
+def pretrain_parquet(data_paths: List[Path], train_size: float, small_dataset: bool):
     seed_everything(1234)
     trans = transforms.Compose([data.Downsample(10), data.ToTensor()])
-    silo_dataset = data.SiloFillDatasetParquet(data_path, trans, small_dataset)
-    paths = [data_path]
-    train(silo_dataset, epochs, learning_rate, batch_size, kernels, train_size, paths, "silo_tof_parquet")
+    silo_dataset = data.SiloFillDatasetParquet(data_paths, trans, small_dataset)
+    dataset_params = {"trans": trans, "train_size": train_size, "small_dataset": small_dataset}
+    return silo_dataset, dataset_params
 
 
-def train(dataset: Dataset, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], train_size: float, paths: List[Path], logger_name: str):
+def train_parquet(data_paths: List[Path], epochs: int, learning_rate: float, batch_size: int, kernels: List[int], loss_fn: str, train_size: float, small_dataset: bool):
+    silo_dataset, dataset_params = pretrain_parquet(data_paths, train_size, small_dataset)
+    train(silo_dataset, dataset_params, epochs, learning_rate, batch_size, kernels, loss_fn, train_size, data_paths, "silo_tof_parquet")
+
+
+def train(dataset: Dataset, dataset_params: Dict, epochs: int, learning_rate: float, batch_size: int, kernels: List[int], loss_fn: str, train_size: float, paths: List[Path], logger_name: str, verbose=True):
+
+    print(f"Trying these hyperparameters:\n\t[b green]Epochs -> {epochs}[/b green]\n\t[b green]Learning rate -> {learning_rate}[/b green]\n\t[b green]Batch size -> {batch_size}[/b green]\n\t[b green]Kernels -> {kernels}[/b green]\n\t[b green]Loss function -> {loss_fn}[/b green]\n")
 
     model = SiloFillRegressor(
-        dataset,
+        dataset_params,
         epochs=epochs,
         learning_rate=learning_rate,
         batch_size=batch_size,
         kernels=kernels,
+        loss_fn=loss_fn,
+        dataset=dataset,
         train_size=train_size,
         paths=paths
     )
@@ -150,13 +173,17 @@ def train(dataset: Dataset, epochs: int, learning_rate: float, batch_size: int, 
         max_epochs=epochs,
         callbacks=[RichProgressBar()],
         logger=TensorBoardLogger(str(Path("us", "ml", "logs")), name=logger_name, default_hp_metric=False),
-        log_every_n_steps=1
+        log_every_n_steps=1,
+        enable_model_summary=False
     )
 
     trainer.fit(model)
 
+    del trainer
+    del model
 
-def viz_excel(model_path: Path):
+
+def viz_excel(xls_path: Path, data_path: Path, model_path: Path):
     from us.plot import plot_full_excel
     from us.data import load_excel_data
     import pandas as pd
@@ -168,17 +195,25 @@ def viz_excel(model_path: Path):
     model = SiloFillRegressor.load_from_checkpoint(str(model_path))
     print("Done.")
 
-    silo_dataset, silo_train, silo_val = data.get_train_val_dataset(model.xls_path, model.data_path, model.trans, model.small_dataset, model.train_size)
+    dataset = data.SiloFillDatasetExcel(xls_path, data_path, model.dataset_params["trans"], model.dataset_params["small_dataset"])
 
-    df_excel = pd.DataFrame(pd.read_excel(model.xls_path, sheet_name="data"))[:2534].drop([47])
-    root_dir = model.data_path
+    silo_dataset, silo_train, silo_val = data.get_train_val_dataset(dataset, model.dataset_params["train_size"])
+
+    df_excel = pd.DataFrame(pd.read_excel(xls_path, sheet_name="data"))[:2534].drop([47])
+    root_dir = data_path
     df_excel = df_excel[df_excel.apply(lambda x: len(pd.DataFrame(pd.read_csv(Path(root_dir, x["filename"].split("/")[-1])))) > 1, axis=1)].reset_index()
     df_excel = df_excel[df_excel["TOF_ManuealReading"] < 30000].reset_index()
 
+    cm_index = df_excel["measured_distance_in_mm"] * 2 * 1000000 / 1000 / df_excel["sound_speed"]
+    wf_index = df_excel["wavefront_distance_in_mm"] * 2 *  1000000 / 1000 / df_excel["sound_speed"]
 
+    indices = [720]
+    viz_single_TOF(model, silo_dataset, indices, show=False)
+    plt.axvline(cm_index[indices[0]] / 10, color="yellow", label="CM")
+    plt.axvline(wf_index[indices[0]] / 10, color="magenta", label="WF")
+    plt.legend(loc = "best")
+    plt.show()
     viz_TOF(model, silo_dataset, title="LAFONTAINE-001", return_fig=True)
-    cm_index = df_excel["measured_distance_in_mm"] * 2* 1000000 / 1000 / df_excel["sound_speed"]
-    wf_index = df_excel["wavefront_distance_in_mm"] *2*  1000000 / 1000 / df_excel["sound_speed"]
     plt.plot(cm_index, label="CM TOF", color="red")
     plt.plot(wf_index, label="WF TOF", color="blue")
     plt.legend(loc="best")
@@ -193,21 +228,74 @@ def viz_excel(model_path: Path):
     viz_TOF(model, silo_val, title="Val")
 
 
+def viz_parquets(model_path: Path, parquet_path: Path):
+    if model_path == Path():
+        model_path = utils.find_last_checkpoint(Path("us", "ml", "logs", "silo_tof_parquet"))
+
+    print(f"Loading model from : [bold green]{model_path}[/bold green]")
+    model = SiloFillRegressor.load_from_checkpoint(str(model_path))
+    print("Done.")
+
+    if parquet_path == Path():
+        silo_dataset = data.SiloFillDatasetParquet(model.paths, model.dataset_params["trans"], model.dataset_params["small_dataset"])
+        silo_dataset, silo_train, silo_val = data.get_train_val_dataset(silo_dataset, model.dataset_params["train_size"])
+    else:
+        silo_dataset = data.SiloFillDatasetParquet([parquet_path], model.dataset_params["trans"], False)
+
+    model.dataset = silo_dataset
+
+    viz_single_TOF(model, silo_dataset, [400, 500, 600, 700, 800])
+    viz_TOF(model, silo_dataset, "Parquets files", return_fig=True)
+    plt.legend(loc="best")
+    plt.xlabel("Time")
+    plt.ylabel("Time of flight index")
+    plt.show()
+
+
+def viz_single_TOF(model, dataset, indices, show=True):
+    for i in indices:
+        input_data, target = dataset[i]
+        target = target.detach().numpy()[0] * input_data.shape[1]
+        pred = model(input_data.view(1, 1, -1)).detach().numpy()[0][0] * input_data.shape[1]
+        simple_max = (np.argmax(input_data.detach().numpy().squeeze()[400:]) + 400)
+
+        plt.plot(input_data.view(-1))
+        plt.axvline(target, color="green", label="LoadCell")
+        plt.axvline(pred, color="red", label="Machine Learning")
+        plt.axvline(simple_max, color="blue", label="Max")
+        plt.legend(loc="best")
+        plt.title(i)
+        if show:
+            plt.show()
+            
+
 def viz_TOF(model, dataset, title, return_fig=False):
     targets = []
     preds = []
+    simple_preds = []
+    diff_with_max = []
     for i in range(len(dataset)):
         input_data, target = dataset[i]
         target = target.detach().numpy()[0] * input_data.shape[1] * 10
         input_data = input_data.view(1, 1, -1)
         pred = model(input_data).detach().numpy()[0] * input_data.shape[2] * 10
 
+        simple_max = (np.argmax(input_data.detach().numpy().squeeze()[400:]) + 400) * 10
+
+        simple_preds.append(simple_max)
         preds.append(pred[0])
         targets.append(target)
+        diff_with_max.append(simple_max - target)
 
+    #plt.plot(diff_with_max)
+    #plt.axhline(np.mean(diff_with_max), linestyle="--", color="gray")
+    #plt.title("Difference between peak and LoadCell ToF")
+    #plt.show()
+    #exit()
     plt.title(title)
     plt.plot(targets, color="green", label="True TOF")
     plt.plot(utils.moving_average(preds, 15), color="magenta", label="Machine Learning")
+    plt.plot(simple_preds, color="gray", label="Baseline")
     plt.legend(loc="best")
     if return_fig:
         return plt.gcf()

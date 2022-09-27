@@ -1,4 +1,8 @@
-
-Automatically flag bad raw data reading vs good reading to check at which distance readings become bad
-Visualize parquet model results to see if training works
-Train longer model and with all parquets files
+(B) Visualize parquet model results to see if training works
+(V) Check max ToF in true data? I now cut the data at 30000 ToF, but it seems that sometimes it goes higher than this
+(A) Why is ToF LC (target) too high? Is there a x2 somewhere?
+(C) test1
+(C) test2
+(Z) test3
+(B) allo test 2
+(Basda) allo test 2

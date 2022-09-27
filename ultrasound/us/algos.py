@@ -14,14 +14,32 @@ def quality_color(quality):
     return "green"
 
 
-def raw_data_quality(data: np.ndarray, plot=False) -> float:
+def raw_data_quality(data: np.ndarray, plot: bool = False) -> float:
+    """
+    Computes a quality index for a raw ultrasound reading
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Raw ultrasound data
+    plot : bool
+        If true, plot the input ultrasound data to visualise the quality
+
+    Returns
+    -------
+    float quality:
+        Quality index on a 1-5 scale. 5 means good quality, 1 means poor quality.
+    """
     min_peak_height = 40
 
+    # Remove main bang
     data = data[3000:]
     
     maxs, _ = find_peaks(data, height=min_peak_height, width=20)
+
     if len(maxs) == 0:
         return 1
+
     max_peak_i = np.argmax(data[maxs])
     maxs_without_biggest = maxs[maxs != maxs[max_peak_i]]
 
@@ -33,27 +51,26 @@ def raw_data_quality(data: np.ndarray, plot=False) -> float:
         plt.plot(maxs, data[maxs], "o")
         plt.plot(maxs[max_peak_i], data[maxs][max_peak_i], "x")
         plt.ylim([0, 255])
-
         print(hist)
-
 
     if hist[4] > 0:
         quality = 5
+        if hist[4] > 3:
+            quality -= 1
     elif hist[3] > 0:
         quality = 4
+        if hist[3] > 4:
+            quality -= 1
     elif hist[2] > 0:
         quality = 3
+        if hist[2] > 5:
+            quality -= 1
     elif hist[1] > 0:
         quality = 2
+        if hist[1] > 6:
+            quality -= 1
     else:
         quality = 1
-    return quality
-
-    quality = -1
-    if len(maxs) > 1:
-        quality = np.max(data[maxs]) / np.mean(data[maxs_without_biggest])
-    else:
-        quality = np.interp(data[maxs[0]], [min_peak_height, 255], [1, 5])
 
     return quality
 

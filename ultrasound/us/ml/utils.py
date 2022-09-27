@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 
-def find_last_checkpoint(logs_folder: Path = Path("us", "ml", "logs", "lightning_logs")):
+def find_last_checkpoint(logs_folder: Path = Path()):
     last_folder = max(logs_folder.iterdir(), key=lambda f: f.stat().st_mtime)
     return sorted(Path(last_folder, "checkpoints").glob("*.ckpt"))[0]
     #list_of_files = glob(Path(logs_folder, "lightning_logs")) # * means all if need specific format then *.csv

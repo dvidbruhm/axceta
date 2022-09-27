@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 import numpy as np
 import pandas as pd
 import torch
@@ -7,14 +8,25 @@ from scipy import signal
 from torchvision import transforms
 from rich import print
 import us.data
+import us.algos
 
 
 class SiloFillDatasetParquet(Dataset):
-    def __init__(self, parquet_file: Path, transform=None, small_dataset=False, target_name="LC_ToF"):
-        print(f"\nLoading dataset from : [bold green]{parquet_file}[/bold green]")
-        self.silo_data = us.data.load_raw_LC_data(parquet_file)
-        self.silo_data = pd.DataFrame(self.silo_data.sort_values(by="LC_AcquisitionTime"))
-        self.silo_data = pd.DataFrame(self.silo_data.sort_values(by="AcquisitionTime")).reset_index()
+    def __init__(self, parquet_files: List[Path], transform=None, small_dataset=False, target_name="LC_ToF"):
+        print(f"\nLoading from these files: [bold green]{parquet_files}[/bold green]")
+        dfs = []
+        for parquet_file in parquet_files:
+            print(f"Loading dataset from : [bold green]{parquet_file}[/bold green]")
+            df = us.data.load_raw_LC_data(parquet_file)
+            df = pd.DataFrame(df.sort_values(by="LC_AcquisitionTime"))
+            df = pd.DataFrame(df.sort_values(by="AcquisitionTime")).reset_index()
+            dfs.append(df)
+        self.silo_data = pd.concat(dfs)
+
+        # Keep only raw ultrasounds that are of high enough quality
+        self.silo_data["raw_data_quality"] = self.silo_data.apply(lambda x: us.algos.raw_data_quality(x["sensor_raw_data"]), axis=1)
+        self.silo_data = self.silo_data[self.silo_data["raw_data_quality"] > 2.5].reset_index()
+
         self.target_name = target_name
         self.small_dataset = small_dataset
         self.transform = transform
@@ -32,7 +44,7 @@ class SiloFillDatasetParquet(Dataset):
     def __getitem__(self, idx):
         series = self.silo_data.loc[idx]
         raw_ultrasound = series["sensor_raw_data"][:self.min_len]
-        target = series[self.target_name]
+        target = series[self.target_name] / 2.0
 
         if "ToF" in self.target_name:
             target = target / len(raw_ultrasound)
@@ -55,11 +67,12 @@ class SiloFillDatasetExcel(Dataset):
         self.min_len = min([l for l in self.silo_data.apply(lambda x: len(pd.DataFrame(pd.read_csv(Path(self.root_dir, x["filename"].split("/")[-1])))), axis=1)])
         self.min_len = 30600 #TEMP to make it fit with other dataset
         self.silo_data = self.silo_data[self.silo_data["TOF_ManuealReading"] < 30000].reset_index()
+
         if small_dataset:
             self.silo_data = self.silo_data[:int(len(self.silo_data) / 10)]
+
         self.transform = transform
         print(f"Done. There are [bold green]{len(self.silo_data)}[/bold green] data points.\n")
-
 
     def __len__(self):
         return len(self.silo_data)
@@ -79,6 +92,7 @@ class SiloFillDatasetExcel(Dataset):
             sample = self.transform(sample)
         return sample
 
+
 class Downsample(object):
     def __init__(self, downsample_factor):
         assert isinstance(downsample_factor, int)
@@ -89,12 +103,14 @@ class Downsample(object):
         downsampled_raw = signal.resample_poly(ultrasound.astype(float), 1, self.downsample_factor)
         return downsampled_raw, target_TOF
 
+
 class ToTensor(object):
     def __call__(self, sample):
         ultrasound, target_TOF = sample[0], sample[1]
         ultrasound = torch.from_numpy(np.expand_dims(ultrasound, axis=0)).float()
         target_TOF = torch.tensor([target_TOF]).float()
         return ultrasound, target_TOF
+
 
 def get_train_val_dataset(dataset, train_size):
         train_len = int(len(dataset) * train_size)
@@ -103,14 +119,31 @@ def get_train_val_dataset(dataset, train_size):
         print(f"Splitting dataset. There are : \n\t[bold green]{len(silo_train)}[/bold green] training data and \n\t[bold green]{len(silo_val)}[/bold green] validation data.")
         return dataset, silo_train, silo_val
 
+# v = d / t
+# t = d / v
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     trans = transforms.Compose([Downsample(10), ToTensor()])
+    silo_dataset_parquet = SiloFillDatasetParquet(parquet_files=[Path("data/Dashboards/1483A.csv.parquet")], transform=trans)
+
+    steps = 0
+    for i in range(0, len(silo_dataset_parquet), 100):
+        steps += 1
+        if steps > 10:
+            exit()
+        plt.plot(silo_dataset_parquet[i][0].view(-1))
+        simple_max = np.argmax(silo_dataset_parquet[i][0].detach().numpy().squeeze()[400:]) + 400
+        plt.axvline(simple_max)
+        plt.show()
+
+    exit()
+
     silo_dataset = SiloFillDatasetExcel(xls_file="data/LAFONTAINE-001acq_info.xlsx", root_dir="data/LAFONTAINE-001/", transform=trans)
 
     tofs = []
     for i in range(len(silo_dataset)):
+        print(i)
         d, tof = silo_dataset[i]
         tofs.append(tof)
     plt.plot(tofs)

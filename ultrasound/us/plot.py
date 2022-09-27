@@ -16,12 +16,12 @@ def plot_raw_ultrasound(df: pd.DataFrame, manual_data: pd.DataFrame, show: bool 
     down = 10
     downsampled_raw = signal.resample_poly(values.values.astype(float), 1, down)
     print(downsampled_raw.shape)
-    plt.plot(downsampled_raw, "-", label="downsampled_raw")
-    plt.axvline(manual_data["TOF_ManuealReading"] / down, linestyle="dashed", color="green", label="Manual TOF")
+    #plt.plot(downsampled_raw, "-", label="downsampled_raw")
+    #plt.axvline(manual_data["TOF_ManuealReading"] / down, linestyle="dashed", color="green", label="Manual TOF")
     plt.axvline(manual_data["TOF_ManuealReading"], linestyle="dashed", color="green", label="Manual TOF")
     plt.show()
 
-    plt.plot(downsampled_raw, "-", label="downsampled_raw")
+    plt.plot(values, "-", label="downsampled_raw")
     plt.axvline(manual_data["TOF_ManuealReading"], linestyle="dashed", color="green", label="Manual TOF")
     cm_index = manual_data["measured_distance_in_mm"] * 2* 1000000 / 1000 / manual_data["sound_speed"]
     wf_index = manual_data["wavefront_distance_in_mm"] *2*  1000000 / 1000 / manual_data["sound_speed"]

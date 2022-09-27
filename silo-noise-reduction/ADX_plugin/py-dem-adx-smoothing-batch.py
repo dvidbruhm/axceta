@@ -1,6 +1,5 @@
+"""
 from scipy import optimize
-
-
 def segments_fit(X, Y, count):
     xmin = X.min()
     xmax = X.max()
@@ -25,7 +24,7 @@ def segments_fit(X, Y, count):
     px, py = func(r.x)
     Y_pred = np.interp(X, px, py)
     return Y_pred
-
+"""
 
 
 def gram_poly(i, m, k, s):
@@ -172,10 +171,8 @@ def algo_savgol(values_splits):
 
     return total_smoothed_values, total_nb_points_used
 
-
+"""
 def algo_regressions(time_splits, values_splits):
-    """ Function that computes the multiline (piecewise) regressions algo on
-        each split and returns an array of the same dimension as the input"""
     splits_smoothed_values = []
 
     for time, values in zip(time_splits, values_splits):
@@ -202,7 +199,7 @@ def algo_regressions(time_splits, values_splits):
     total_smoothed_values = np.concatenate(splits_smoothed_values)
 
     return total_smoothed_values
-
+"""
 
 locations = df["LocationName"].unique()
 result = []
@@ -233,13 +230,13 @@ for location in locations:
     smoothed_values_savgol, nb_points_used = algo_savgol(values_splits)
 
     # Run regression algo on each split
-    smoothed_values_regression = algo_regressions(time_splits, values_splits)
+    #smoothed_values_regression = algo_regressions(time_splits, values_splits)
 
     # Assign new columns for the smoothed data to the result DataFrame as output
     temp_result["smoothed_savgol"] = smoothed_values_savgol
     temp_result["nb_points_used"] = nb_points_used
-    temp_result["smoothed_regression"] = smoothed_values_regression
-    temp_result["smoothed_combined"] = (smoothed_values_regression * (1 - savgol_weight)) + (smoothed_values_savgol * savgol_weight)
+    #temp_result["smoothed_regression"] = smoothed_values_regression
+    #temp_result["smoothed_combined"] = (smoothed_values_regression * (1 - savgol_weight)) + (smoothed_values_savgol * savgol_weight)
 
     result.append(temp_result)
 
