@@ -275,3 +275,30 @@ FACTURÉ JUSQU'ICI
 4h
 - Start project time series forecasting to predict next silo fill
 - Compare hand taken data and pictures with LoadCell data
+
+26-29 sept 2022:
+20h
+- Continue project to predict next silo fill
+
+-------- FACTURÉ --------
+
+30 sept 2022:
+4h
+- Continue project to predict next silo fill
+3-7 oct 2022:
+20h
+- Continue project to predict next silo fill
+11 oct 2022:
+4h
+- Continue project to predict next silo fill with updated silo data
+17-21 oct 2022:
+17: 5h 18: 7h
+- Finally generate actual prediction on real data
+- Algo based on change of rate of consumption between fills, separated on big cycles with analyse done on 2 silos
+
+-------- FACTURÉ ---------
+
+semaine 1-4 novembre 2022:
+25h
+- Algo pour trouver automatiquement la meilleure fenêtre dans les données raw
+- Calculer le CDM en fonction des fenêtres et comparer les résultats

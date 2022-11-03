@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 import itertools
 import glob
@@ -9,19 +10,19 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from rich import print
-from darts import TimeSeries
 
 import us.data as data
 import us.plot as plot
 import us.utils as utils
 import us.algos as algos
 import us.ml.utils as ml_utils
+import us.forecasting.algos as f_algos
 
 import us.ml.ml as ml
 
-#plt.style.use("dark_background")
-#mpl.rcParams["figure.facecolor"] = '#282A36'
-#mpl.rcParams["axes.facecolor"] = '#282A36'
+plt.style.use("dark_background")
+mpl.rcParams["figure.facecolor"] = '#282A36'
+mpl.rcParams["axes.facecolor"] = '#282A36'
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 # question: l'allure des 2 raw ultrasons et où arrivent les résultats du excel
@@ -102,6 +103,7 @@ def raw_ultrasound_algo(data_path: Path):
     df_sorted["output_TOF_v1"] = ml_utils.moving_average(df_sorted["output_TOF_v1"].values, 5)
     
     df_sorted["cdm_ToF2"] = df_sorted.apply(lambda x: x["cdm_ToF"] + 2000 * np.interp(x["cdm_ToF"], [5000, 30000], [-1, 1]), axis=1)
+
 
     plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF"], color="orange", label="CDM")
     #plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF2"], color="blue", label="CDM")
@@ -242,6 +244,113 @@ def compute_raw_data_quality_excel(xls_path: Path, data_dir: Path):
         plt.title(i)
     plt.show()
 
+
+@app.command()
+def compare_sensor_configs(data_path: Path):
+    df = pd.DataFrame(pd.read_csv(data_path))
+    df["Error_CDM"] = abs(df["LC_FeedRemaining_kg"] - df["FeedRemaining_kg_CDM"])
+    df["Error_PGA_WF"] = abs(df["LC_FeedRemaining_kg"] - df["FeedRemaining_kg_PGA_WF"])
+    config_ids = df["configID"].unique()
+    silos = df["LocationName"].unique()
+    print(df)
+    print(df.columns)
+    print(config_ids)
+    print(silos)
+    print(df[df["LocationName"] == silos[0]]["configID"])
+
+    errors = []
+
+    for silo in sorted(silos):
+        silo_data = df[df["LocationName"] == silo]
+        for i, config_id in enumerate(config_ids):
+            config_data = silo_data[silo_data["configID"] == config_id]
+            mae_cdm = round(config_data["Error_CDM"].mean())
+            mae_pga_wf = round(config_data["Error_PGA_WF"].mean())
+            var_cdm = round(config_data["FeedRemaining_kg_CDM"].std())
+            var_pga_wf = round(config_data["FeedRemaining_kg_PGA_WF"].std())
+            errors.append((silo, config_id, mae_cdm, mae_pga_wf, var_cdm, var_pga_wf))
+            plt.subplot(len(config_ids), 1, i + 1)
+            plt.plot(config_data["LC_FeedRemaining_kg"], color="green", label="LoadCell")
+            plt.plot(config_data["FeedRemaining_kg_CDM"], color="orange", label="CDM")
+            plt.plot(config_data["FeedRemaining_kg_PGA_WF"], color="blue", label="PGA WF")
+            plt.title(config_id)
+        plt.legend(loc="best")
+        #plt.show()
+    #print(errors)
+    for silo in sorted(silos):
+        print(f"\n-------{silo}--------\n")
+        err = list(filter(lambda er: er[0] == silo, errors))
+        min_i, e = min(enumerate(err), key=lambda t: (t[1][2] + t[1][4]))
+        [print(f"[bold yellow]{e}[/bold yellow]") if i == min_i else print(e) for i, e in enumerate(err)]
+
+
+@app.command()
+def CDM_window_test(data_path: Path):
+
+    def plot_with_window(data, window, color, y=(0, 1)):
+        plt.plot(data, label="raw data")
+        plt.axvline(window.start_index, ymin=y[0], ymax=y[1], color=color, lw=3)
+        plt.axvline(window.start_index + window.width, ymin=y[0], ymax=y[1], color=color, lw=3)
+        plt.legend(loc="best")
+
+    """
+    df = pd.DataFrame(pd.read_parquet(data_path))
+    i = 2700
+    test_data = df.loc[i, "sensor_raw_data"]
+    cdm = df.loc[i, "cdm_ToF"]
+    computed_cdm = algos.compute_cdm(test_data[2500:], 2500)
+    plt.plot(test_data)
+    plt.axvline(computed_cdm, color="red")
+    plt.axvline(cdm/2, color="green")
+    plt.show()
+    """
+
+
+    silo_nb = data_path.name.split(".")[0]
+    df = pd.DataFrame(pd.read_csv(data_path, converters={"rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
+    silo_a = df[df["LocationName"] == f"Avinor-{silo_nb}A"].reset_index()
+    silo_b = df[df["LocationName"] == f"Avinor-{silo_nb}B"].reset_index()
+    silo_a = silo_a.sort_values(by="AcquisitionTime")
+    plt.plot(silo_a["LC_FeedRemaining_kg"])
+    plt.plot(silo_a["FeedRemaining_kg_CDM"])
+    plt.show()
+
+    test_data = np.array(silo_a.loc[210, "rawData"])
+    computed_cdm = algos.compute_cdm(test_data[2500:], 2500)
+    plt.plot(test_data)
+    plt.axvline(computed_cdm, color="red")
+    plt.show()
+    print(silo_a.columns)
+
+
+    window_sizes = [8000, 5000, 2000]
+    colors = ["red", "orange", "green"]
+    ys = [(0.2, 0.4), (0.4, 0.6), (0.6, 0.8)]
+    plt.subplot(3, 1, 1)
+    test_data = np.array(silo_a.loc[210, "rawData"])
+    for ws, color, y in zip(window_sizes, colors, ys):
+        w = algos.find_best_window(test_data, width=ws)
+        cdm = algos.compute_cdm(test_data[w.start_index:w.start_index + w.width], w.start_index)
+        plot_with_window(test_data, w, color, y)
+        plt.axvline(cdm, color=color)
+
+    plt.subplot(3, 1, 2)
+    test_data = np.array(silo_a.loc[350, "rawData"])
+    for ws, color, y in zip(window_sizes, colors, ys):
+        w = algos.find_best_window(test_data, width=ws)
+        cdm = algos.compute_cdm(test_data[w.start_index:w.start_index + w.width], w.start_index)
+        plot_with_window(test_data, w, color, y)
+        plt.axvline(cdm, color=color)
+
+    plt.subplot(3, 1, 3)
+    test_data = np.array(silo_a.loc[470, "rawData"])
+    for ws, color, y in zip(window_sizes, colors, ys):
+        w = algos.find_best_window(test_data, width=ws)
+        cdm = algos.compute_cdm(test_data[w.start_index:w.start_index + w.width], w.start_index)
+        plot_with_window(test_data, w, color, y)
+        plt.axvline(cdm, color=color)
+    plt.show()
+
 ### ML ---------
 
 @app.command()
@@ -285,31 +394,178 @@ def viz_parquets(model_path: Path = Path(), parquet_path: Path = Path()):
 ### Timeseries Forecasting -> prediction of next silo fill date
 
 @app.command()
-def viz_timeseries(silo_name: str, data_path: Path = Path("data/Timeseries/Load_Cells_Levels.csv")):
+def predict_next_fill(silo_nb: str, data_path: Path = Path("data/Timeseries/Loadcell_v3.csv")):
+
+    silo_name_a = f"Avinor-{silo_nb}A"
+    silo_name_b = f"Avinor-{silo_nb}B"
+    dfA = f_algos.read_load_cell_data(data_path, silo_name_a, version="v2")
+    dfB = f_algos.read_load_cell_data(data_path, silo_name_b, version="v2")
+
+    #split_date = "2022-10-05 12:00:00"
+    #dfA = dfA.loc[dfA.index <= split_date]
+    #dfB = dfB.loc[dfB.index <= split_date]
+
+    not_both_flat = f_algos.find_not_both_flat(dfA, dfB, min_len=48, debug=False)
+    big_cycles = f_algos.find_big_cycles(not_both_flat, start_at="end", debug=False)
+
+    current_df = f_algos.get_currently_active(dfA, dfB, silo_name_a, silo_name_b)
+    current_silo_name = current_df.columns[0]
+    print(f"Currently active silo : [bold green]{current_silo_name}[/bold green]")
+
+    fill_indices = f_algos.find_silo_fills(current_df[current_silo_name].values)
+    fill_rate_info = f_algos.get_fill_rate_info(fill_indices, current_df, current_silo_name, big_cycles)
+    print(fill_rate_info)
+    for fri in fill_rate_info:
+        print(fri.big_cycle_nb, fri.rate_per_unit)
+    current_big_cycle = len(big_cycles) - 1
+    if current_big_cycle == fill_rate_info[-1].big_cycle_nb:
+        #regression
+        pass
+    elif current_big_cycle > fill_rate_info[-1].big_cycle_nb:
+        bc = 0
+        next_bc = 1
+        rates = []
+        for fri in fill_rate_info:
+            if fri.big_cycle_nb == next_bc:
+                rates.append(fri.rate_per_unit)
+                next_bc += 1
+        pred_rate = np.mean(rates)
+        current_fill = current_df[current_silo_name].values[-1]
+        nb_hours_before_empty = round(current_fill / pred_rate)
+        pred_empty_date = current_df.index[-1] + pd.Timedelta(hours=nb_hours_before_empty)
+        print("\n[green]------------------------------------------------[/green]\n")
+        print(f"Current date : [bold green]{current_df.index[-1]}[/bold green]")
+        print(f"Predicted number hours before empty : [bold green]{nb_hours_before_empty}[/bold green]")
+        print(f"Predicted empty date : [bold green]{pred_empty_date}[/bold green]")
+        plt.plot(current_df[current_silo_name])
+        plt.axvline(pred_empty_date)
+        plt.show()
+
+    
+
+@app.command()
+def viz_loadcell_data(silo_nb: str, data_path: Path = Path("data/Timeseries/Loadcell_v3.csv")):
+
+    train_size = 0.4
+
+    silo_name_a = f"Avinor-{silo_nb}A"
+    silo_name_b = f"Avinor-{silo_nb}B"
+
+    dfA = f_algos.read_load_cell_data(data_path, silo_name_a, version="v2")
+    dfB = f_algos.read_load_cell_data(data_path, silo_name_b, version="v2")
+    not_both_flat = f_algos.find_not_both_flat(dfA, dfB, min_len=48, debug=False)
+    big_cycles = f_algos.find_big_cycles(not_both_flat, start_at="end", debug=True)
+
+    current_df = dfA
+    current_silo_name = silo_name_a
+    x_min = current_df.index[0]
+    x_max = current_df.index[-1]
+
+
+    for i, (silo_name, df) in enumerate([(silo_name_a, dfA), (silo_name_b, dfB)]):
+        plt.subplot(3, 1, i+1)
+        plt.xlim([x_min, x_max])
+        plt.title(silo_name)
+        plt.plot(df[silo_name])
+        plt.plot(df[np.array(not_both_flat) == True].iloc[:, 0], '.')
+        for cycle in big_cycles:
+            plt.axvline(df.index[cycle.start+1], color="green")
+            plt.axvline(df.index[cycle.end-1], color="orange")
+        fill_indices = f_algos.find_silo_fills(df[silo_name].values)
+        for index in fill_indices:
+            plt.axvline(df.index[index], color="gray", linestyle="--")
+
+
+
+    is_flat = f_algos.find_flat_signals(current_df[current_silo_name].values, debug=False)
+    df = current_df[np.array(is_flat) == False]
+    fill_indices = f_algos.find_silo_fills(df[current_silo_name].values)
+    #fill_indices.insert(0, 50)
+    print(fill_indices)
+    fill_rate_info = f_algos.get_fill_rate_info(fill_indices, df, current_silo_name, big_cycles)
+    print(fill_rate_info)
+
+    plt.subplot(3, 1, 3)
+    plt.xlim([x_min, x_max])
+
+    plt.plot(df[current_silo_name], '.', color="blue")
+    for index in fill_indices:
+        plt.axvline(df.index[index])
+
+    ### TRAIN DATA
+    """
+    plt.subplot(4, 1, 4)
+    plt.xlim([x_min, x_max])
+    #plt.plot(train_df[silo_nb], '.', color="green", label="Train")
+    #plt.plot(val_df[silo_nb], '.', color="orange", label="Val")
+    plt.legend(loc="best")
+    """
+    # Simple regression
+    """
+    nb_points = 24
+
+    for split in [700, 750, 800, 1025]:
+        preds, empty_date = f_algos.simple_regression(current_df[silo_nb][:split].values, nb_points, debug=False)
+        plt.plot(current_df[silo_nb][split-nb_points:split].index, preds[:nb_points], color="yellow")
+        plt.plot(current_df[silo_nb][split-1:split-nb_points+len(preds)-1].index, preds[nb_points:], color="red")
+
+    preds, empty_date = f_algos.simple_regression(train_df[silo_nb].values, nb_points, debug=False)
+    plt.plot(current_df[silo_nb][len(train_df)-nb_points:len(train_df)].index, preds[:nb_points], color="yellow")
+    plt.plot(current_df[silo_nb][len(train_df)-1:len(train_df)-nb_points+len(preds)-1].index, preds[nb_points:], color="red")
+
+    # Algo based on previous rates
+    is_flat = f_algos.find_flat_signals(train_df[silo_nb].values)
+    train_df = train_df[np.array(is_flat) == False]
+    fill_indices = f_algos.find_silo_fills(train_df[silo_nb].values)
+    fill_indices.insert(0, 50)
+    fill_rate_info = f_algos.get_fill_rate_info(fill_indices, train_df, silo_nb)
+
+    print(fill_rate_info)
+    pred = f_algos.predict_next_fill(fill_rate_info, train_df, silo_nb)
+    plt.axvline(pred, color="yellow")
+
+    """
+    for index in fill_indices:
+        plt.axvline(df.index[index])
+    plt.show()
+
+
+@app.command()
+def darts_lib_test(silo_name: str, data_path: Path = Path("data/Timeseries/Load_Cells_Levels.csv")):
+    from darts.timeseries import TimeSeries
     from darts.models.forecasting.auto_arima import AutoARIMA
     from darts.models.forecasting.arima import ARIMA
     from darts.models.forecasting.exponential_smoothing import ExponentialSmoothing
     from darts.models.forecasting.prophet_model import Prophet
     from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+    from darts.models.filtering.kalman_filter import KalmanFilter
+    from darts.models.forecasting.transformer_model import TransformerModel
 
-    df = pd.DataFrame(pd.read_csv(data_path, usecols=["AcquisitionDate", silo_name], converters={silo_name: lambda x: float(x[:-2]) if len(x) > 0 else np.NaN}))
-    df.set_index(pd.DatetimeIndex(df["AcquisitionDate"]), inplace=True)
-    df = df.resample("1H").asfreq().drop(["AcquisitionDate"], axis=1)
-    df[silo_name] = df[silo_name].interpolate(method='polynomial', order=3)
-    print(df)
-    series = TimeSeries.from_dataframe(df)
-    series.plot()
+
+    df = pd.DataFrame()
+    for i, silo_name in enumerate(["Avinor-1485B", "Avinor-1485A"]):
+        df = f_algos.read_load_cell_data(data_path, silo_name)
+        plt.subplot(2, 1, i+1)
+        plt.plot(df[silo_name], ".", color="gray")
+        plt.plot(abs(df[silo_name].diff()))
+        #df[abs(df[silo_name].diff()) < 0.0001] = np.nan
+        series = TimeSeries.from_dataframe(df)
+        series.plot(linewidth=3)
+
     plt.show()
 
-    series, _ = series.split_before(pd.Timestamp("20220730"))
+    #series, _ = series.split_before(pd.Timestamp("20220730"))
     _, series = series.split_after(pd.Timestamp("20220715"))
 
-    train, val = series.split_before(0.85)
+    train, val = series.split_before(0.45)
     train.plot()
     val.plot()
+    for index in fill_indices:
+        plt.axvline(df.index[index], color="green")
     plt.show()
 
-    models = [ARIMA(), AutoARIMA(), ExponentialSmoothing(), Prophet(), LightGBMModel(lags=72)]
+    exit()
+    models = [ARIMA(), AutoARIMA(), ExponentialSmoothing(), Prophet(), LightGBMModel(lags=72), TransformerModel(input_chunk_length=24, output_chunk_length=12)]
     for i, model in enumerate(models):
         plt.subplot(len(models), 1, i+1)
         model.fit(train)

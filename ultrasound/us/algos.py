@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -80,6 +81,11 @@ def denoise(data: np.ndarray, threshold: float) -> np.ndarray:
     return data
 
 
+def denoise_abs(data: np.ndarray, threshold: float) -> np.ndarray:
+    data[data < threshold] = 0
+    return data
+
+
 def algo_v1(data: np.ndarray, plot: bool = False) -> float:
 
     data_untouched = data.copy()
@@ -124,6 +130,50 @@ def algo_v1(data: np.ndarray, plot: bool = False) -> float:
 
     tof = (tof + time_delay) * 2
     return tof
+
+
+@dataclass
+class Window:
+    start_index: int
+    width: int
+
+def find_best_window(data: np.ndarray, width: int) -> Window:
+    start_index = 2500
+    resolution = 50
+    
+    highest_sum = 0
+    best_window = Window(start_index=start_index, width=width)
+
+    for current_index in range(start_index, len(data) - width, resolution):
+        data_window = data[current_index:current_index + width]
+        current_sum = data_window.sum()
+        if current_sum > highest_sum:
+            highest_sum = current_sum
+            best_window = Window(start_index=current_index, width=width)
+
+
+    print(best_window)
+    #plt.plot(range(0, len(data)), data)
+    #plt.plot(range(best_window.start_index, best_window.start_index+best_window.width), data[best_window.start_index:best_window.start_index+best_window.width])
+    return best_window
+
+
+def compute_cdm(data: np.ndarray, start_index: int) -> int:
+    nt = NoiseThresholdv1()
+    threshold = nt.process(data)
+    print(max(data))
+    data = denoise_abs(data.copy(), threshold)
+    print(threshold)
+    indices = np.arange(start_index, len(data) + start_index)
+    print(indices)
+    print(data)
+    data = data*data
+    cdm = 0 if np.sum(data) == 0 else np.average(indices, weights=data)
+    print(cdm)
+    #plt.plot(indices, data)
+    #plt.axvline(cdm)
+    #plt.show()
+    return int(cdm)
 
 
 class NoiseThresholdv1(object):

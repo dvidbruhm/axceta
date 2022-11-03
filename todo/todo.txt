@@ -1,8 +1,11 @@
-(B) Visualize parquet model results to see if training works
-(V) Check max ToF in true data? I now cut the data at 30000 ToF, but it seems that sometimes it goes higher than this
-(A) Why is ToF LC (target) too high? Is there a x2 somewhere?
-(C) test1
-(C) test2
-(Z) test3
-(B) allo test 2
-(Basda) allo test 2
+
+
+
+
+
+
+
+
+Compare error of all sensor configs, but seperated by distance (eg. 1-3 meters, 3-5 meters, etc.) and find if log-1 is better in all distances or not
+verifier si il y a une correelation entre les raws pas de signal et un autre parametre que la distance
+investiguer les oscillations de temperastuure
