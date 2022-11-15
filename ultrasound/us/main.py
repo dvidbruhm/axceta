@@ -351,6 +351,44 @@ def CDM_window_test(data_path: Path):
         plt.axvline(cdm, color=color)
     plt.show()
 
+
+@app.command()
+def compute_error_metric(data_path: Path):
+    
+    def tof_to_dist(tof, sound_speed):
+        dist = sound_speed * tof * 10e-7 / 2
+        return dist
+    
+    full_data = pd.DataFrame(pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime}))
+    if full_data["configID"].unique() > 1:
+        full_data = full_data[full_data["configID"] == "log-1"].reset_index()
+    full_data["LC_FeedRemaining_kg"] = full_data["LC_FeedRemaining_kg"] / 1000
+    full_data["FeedRemaining_kg_CDM"] = full_data["FeedRemaining_kg_CDM"] / 1000
+    full_data["sound_speed"] = full_data.apply(lambda x: utils.temp_to_sound_speed(x["temperature"]), axis=1)
+    full_data["dist_cdm"] = full_data.apply(lambda x: tof_to_dist(x["cdm_ToF"], x["sound_speed"]), axis=1)
+    full_data["dist_lc"] = full_data.apply(lambda x: tof_to_dist(x["LoadCells_ToF"], x["sound_speed"]), axis=1)
+
+    print(full_data.columns)
+    print(full_data["LocationName"].unique())
+    print(full_data.loc[0, "LocationName"])
+    print(full_data.loc[len(full_data)-1, "LocationName"])
+    for silo_name in full_data["LocationName"].unique():
+        data = full_data[full_data["LocationName"] == silo_name]
+        error_cdm_kg = abs(data["LC_FeedRemaining_kg"] - data["FeedRemaining_kg_CDM"])
+        full_mae = error_cdm_kg.mean()
+        print(f"MAE for {silo_name} : {full_mae}")
+        steps = np.linspace(0, max(full_data["LC_FeedRemaining_kg"]), 10)
+        steps = range(0, 9)
+        for i in range(1, len(steps)):
+            t1 = steps[i - 1]
+            t2 = steps[i]
+            d = data[(data["dist_lc"] > t1) & (data["dist_lc"] < t2)]
+            error_cdm = abs(d["LC_FeedRemaining_kg"] - d["FeedRemaining_kg_CDM"])
+            d_mae = error_cdm.mean()
+            print(f"Steps : {t1:5.2f} - {t2:5.2f}, mae: {d_mae:5.2f}")
+        
+
+
 ### ML ---------
 
 @app.command()
@@ -375,6 +413,7 @@ def hyperparam_search_parquets(data_path: str, train_size: float):
     kernels = [[1, 1, 1, 1, 1], [1, 2, 4, 8, 16], [1, 4, 8, 16, 32], [1, 8, 16, 32, 64]]
     loss_fns = ["mse", "rmsle"]
     
+    
     num = 0
     for lr, epoch, batch_size, kernel, loss_fn in itertools.product(lrs, epochs, bs, kernels, loss_fns):
         if num > 68:
@@ -388,6 +427,7 @@ def viz_excel(xls_path: Path, data_path: Path, model_path: Path):
 @app.command()
 def viz_parquets(model_path: Path = Path(), parquet_path: Path = Path()):
     ml.viz_parquets(model_path, parquet_path)
+
 
 ### ---------------
 
