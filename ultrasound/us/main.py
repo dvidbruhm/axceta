@@ -306,49 +306,83 @@ def CDM_window_test(data_path: Path):
     """
 
 
-    silo_nb = data_path.name.split(".")[0]
-    df = pd.DataFrame(pd.read_csv(data_path, converters={"rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
-    silo_a = df[df["LocationName"] == f"Avinor-{silo_nb}A"].reset_index()
-    silo_b = df[df["LocationName"] == f"Avinor-{silo_nb}B"].reset_index()
-    silo_a = silo_a.sort_values(by="AcquisitionTime")
-    plt.plot(silo_a["LC_FeedRemaining_kg"])
-    plt.plot(silo_a["FeedRemaining_kg_CDM"])
+    silo_nb = data_path.name.split(".")[0][:-1]
+    silo_a_path = Path(f"{data_path.parent}/{silo_nb}A.csv")
+    silo_b_path = Path(f"{data_path.parent}/{silo_nb}B.csv")
+    silo_a = pd.DataFrame(pd.read_csv(silo_a_path, converters={"rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
+    silo_b = pd.DataFrame(pd.read_csv(silo_b_path, converters={"rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
+    #silo_a = df[df["LocationName"] == f"Avinor-{silo_nb}A"].reset_index()
+    #silo_b = df[df["LocationName"] == f"Avinor-{silo_nb}B"].reset_index()
+    #silo_a = silo_a.sort_values(by="AcquisitionTime")
+
+    window_sizes = [8000, 5000, 4000, 3000]
+    for ws in window_sizes:
+        cdms = []
+        for i in range(len(silo_a)):
+            cdm, _ = algos.compute_cdm_in_window(np.array(silo_a.loc[i, "rawData"]), 2500, ws)
+            cdms.append(cdm)
+        cdms = f_algos.moving_average(cdms, 10)
+        silo_a[f"ToF_computed_cdm_{ws}"] = cdms
+        silo_a[f"Error_ToF_computed_cdm_{ws}"] = abs(silo_a[f"ToF_computed_cdm_{ws}"] - (silo_a["LoadCells_ToF"]/2))
+        mae = silo_a[f"Error_ToF_computed_cdm_{ws}"].mean()
+        print(f"CDM mae {ws} : {mae}")
+    silo_a["Error_ToF_cdm"] = abs((silo_a["cdm_ToF"]/2) - (silo_a["LoadCells_ToF"]/2))
+    mae = silo_a[f"Error_ToF_cdm"].mean()
+    print(f"CDM mae : {mae}")
+
+    """
+    cdms = []
+    for i in range(len(silo_a)):
+        cdm = algos.compute_cdm(np.array(silo_a.loc[i, "rawData"][2500:]), 2500)
+        cdms.append(cdm)
+    cdms = f_algos.moving_average(cdms, 10)
+    silo_a["ToF_computed_cdm_full"] = cdms
+    """
+
+    plt.plot(silo_a["LoadCells_ToF"] / 2, label="LC")
+    plt.plot(f_algos.moving_average(silo_a["cdm_ToF"], 10) / 2, label="CDM")
+    for ws in window_sizes:
+        plt.plot(silo_a[f"ToF_computed_cdm_{ws}"], label=f"CDM_{ws}")
+    plt.legend(loc="best")
     plt.show()
 
-    test_data = np.array(silo_a.loc[210, "rawData"])
-    computed_cdm = algos.compute_cdm(test_data[2500:], 2500)
-    plt.plot(test_data)
-    plt.axvline(computed_cdm, color="red")
-    plt.show()
-    print(silo_a.columns)
+    #test_data = np.array(silo_a.loc[210, "rawData"])
+    #computed_cdm = algos.compute_cdm(test_data[2500:], 2500)
 
-
-    window_sizes = [8000, 5000, 2000]
     colors = ["red", "orange", "green"]
     ys = [(0.2, 0.4), (0.4, 0.6), (0.6, 0.8)]
     plt.subplot(3, 1, 1)
-    test_data = np.array(silo_a.loc[210, "rawData"])
+    i = 430
+    test_data = np.array(silo_a.loc[i, "rawData"])
     for ws, color, y in zip(window_sizes, colors, ys):
-        w = algos.find_best_window(test_data, width=ws)
-        cdm = algos.compute_cdm(test_data[w.start_index:w.start_index + w.width], w.start_index)
+        cdm, w = algos.compute_cdm_in_window(test_data, 2500, ws)
         plot_with_window(test_data, w, color, y)
         plt.axvline(cdm, color=color)
+    cdm_full = algos.compute_cdm(test_data[2500:], 2500)
+    plt.axvline(cdm_full, color="black")
+    plt.axvline(silo_a.loc[i, "LoadCells_ToF"] / 2, color="blue")
 
     plt.subplot(3, 1, 2)
-    test_data = np.array(silo_a.loc[350, "rawData"])
+    i = 450
+    test_data = np.array(silo_a.loc[i, "rawData"])
     for ws, color, y in zip(window_sizes, colors, ys):
-        w = algos.find_best_window(test_data, width=ws)
-        cdm = algos.compute_cdm(test_data[w.start_index:w.start_index + w.width], w.start_index)
+        cdm, w = algos.compute_cdm_in_window(test_data, 2500, ws)
         plot_with_window(test_data, w, color, y)
         plt.axvline(cdm, color=color)
+    cdm_full = algos.compute_cdm(test_data[2500:], 2500)
+    plt.axvline(cdm_full, color="black")
+    plt.axvline(silo_a.loc[i, "LoadCells_ToF"] / 2, color="blue")
 
     plt.subplot(3, 1, 3)
-    test_data = np.array(silo_a.loc[470, "rawData"])
+    i = 465
+    test_data = np.array(silo_a.loc[i, "rawData"])
     for ws, color, y in zip(window_sizes, colors, ys):
-        w = algos.find_best_window(test_data, width=ws)
-        cdm = algos.compute_cdm(test_data[w.start_index:w.start_index + w.width], w.start_index)
+        cdm, w = algos.compute_cdm_in_window(test_data, 2500, ws)
         plot_with_window(test_data, w, color, y)
         plt.axvline(cdm, color=color)
+    cdm_full = algos.compute_cdm(test_data[2500:], 2500)
+    plt.axvline(cdm_full, color="black")
+    plt.axvline(silo_a.loc[i, "LoadCells_ToF"] / 2, color="blue")
     plt.show()
 
 ### ML ---------
