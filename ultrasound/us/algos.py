@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -151,29 +152,23 @@ def find_best_window(data: np.ndarray, width: int) -> Window:
             highest_sum = current_sum
             best_window = Window(start_index=current_index, width=width)
 
-
-    print(best_window)
-    #plt.plot(range(0, len(data)), data)
-    #plt.plot(range(best_window.start_index, best_window.start_index+best_window.width), data[best_window.start_index:best_window.start_index+best_window.width])
     return best_window
 
 
 def compute_cdm(data: np.ndarray, start_index: int) -> int:
     nt = NoiseThresholdv1()
     threshold = nt.process(data)
-    print(max(data))
     data = denoise_abs(data.copy(), threshold)
-    print(threshold)
     indices = np.arange(start_index, len(data) + start_index)
-    print(indices)
-    print(data)
     data = data*data
     cdm = 0 if np.sum(data) == 0 else np.average(indices, weights=data)
-    print(cdm)
-    #plt.plot(indices, data)
-    #plt.axvline(cdm)
-    #plt.show()
     return int(cdm)
+
+
+def compute_cdm_in_window(data: np.ndarray, start_index: int, window_size: int) -> Tuple[int, Window]:
+    win = find_best_window(data[start_index:], window_size)
+    cdm = compute_cdm(data[win.start_index:win.start_index + win.width], start_index=win.start_index)
+    return cdm, win
 
 
 class NoiseThresholdv1(object):

@@ -1,2 +1,5 @@
 x 2022-08-19 Automatically flag bad raw data reading vs good reading to check at which distance readings become bad
 x 2022-08-19 Train longer model and with all parquets files
+x 2022-11-17 Faire script qui calcul l'erreur par rapport au loadcell, moyenne et par distance, pour pouvoir facilement avoir une métrique d'erreur pour voir si nos résultats s'améliore en changeant de config/méthode
+x 2022-11-18 Add column with nb of occurence samples
+x 2022-11-18 Check errors when using a minimum peak strenght of raw data
