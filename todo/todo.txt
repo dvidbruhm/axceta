@@ -10,3 +10,5 @@ Compare error of all sensor configs, but seperated by distance (eg. 1-3 meters, 
 verifier si il y a une correelation entre les raws pas de signal et un autre parametre que la distance
 investiguer les oscillations de temperastuure
 Faire script qui calcul l'erreur par rapport au loadcell, moyenne et par distance, pour pouvoir facilement avoir une métrique d'erreur pour voir si nos résultats s'améliore en changeant de config/méthode
+Accuracy vs Temperature
+Refaire l'inventaire des cas où ca marche bien, moins bien (distance, silo, temperature, etc..)
