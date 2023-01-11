@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import Tuple
 import numpy as np
@@ -36,7 +37,7 @@ def raw_data_quality(data: np.ndarray, plot: bool = False) -> float:
 
     # Remove main bang
     data = data[3000:]
-    
+
     maxs, _ = find_peaks(data, height=min_peak_height, width=20)
 
     if len(maxs) == 0:
@@ -77,6 +78,79 @@ def raw_data_quality(data: np.ndarray, plot: bool = False) -> float:
     return quality
 
 
+def detect_main_bang(data) -> Tuple(int, int):
+    # TODO
+    pass
+
+
+def wavefront(data, temperature, threshold, window_in_meters, freq=500000):
+    """Finds the wavefront index in a raw ultrasound data
+
+    Parameters
+    ----------
+    data : List[int]
+        Raw ultrasound data
+    temperature : float
+        Temperature of the device in Celsius
+    threshold : float ([0 - 1])
+        Threshold as a fraction of the max value to find the wavefront, between 0 and 1
+    window_in_meters : float
+        Window around the max value in which to find the wavefront, in meters
+    freq : int, optional
+        Frequency of the signal in Hz, by default 500000
+
+    Returns
+    -------
+    int
+        Index of the wavefront
+    """
+    def argmax(x):
+        return max(range(len(x)), key=lambda i: x[i])
+
+    # Error handling
+    if math.isnan(temperature) or len(data) < 10000:
+        return -1
+
+    # Index at which to cut the main bang
+    bang_index = 2500
+
+    # Compute the threshold and the speed of sound based on the temperature
+    threshold = threshold * max(data[bang_index:])
+    sound_speed = 20.02 * math.sqrt(temperature + 273.15)
+
+    # Compute the window to check for the threshold around the max index,
+    # which depends on the frequency of the signal
+    window_in_samples = int(window_in_meters / sound_speed * freq) * 2
+
+    # Find index of max value
+    max_index = argmax(data[bang_index:]) + bang_index
+
+    # Start and end index of the window in which to check for the threshold
+    start = int(max_index - window_in_samples / 2)
+    end = int(max_index + window_in_samples / 2)
+
+    # Find the index at which the data is at the threshold inside the window
+    wf_index = -1
+    for i, d in enumerate(data[start:end], start=start):
+        if d > threshold:
+            wf_index = i
+            break
+    if False:
+        print(sound_speed)
+        print(max_index)
+        print(window_in_samples)
+        print(start, end)
+        print(wf_index)
+        plt.plot(data)
+        plt.axhline(threshold)
+        plt.axvline(start, color="black", linestyle="--")
+        plt.axvline(end, color="black", linestyle="--")
+        plt.axvline(wf_index, color="green")
+        plt.axvline(max_index, color="yellow", linestyle="--")
+        plt.show()
+    return wf_index
+
+
 def denoise(data: np.ndarray, threshold: float) -> np.ndarray:
     data[data < np.max(data) * threshold] = 0
     return data
@@ -112,8 +186,6 @@ def algo_v1(data: np.ndarray, plot: bool = False) -> float:
     maxs, _ = find_peaks(denoised, height=min_peak_height, width=20)
     max_peak_i = np.argmax(denoised[maxs])
 
-
-
     if plot:
         plt.plot(denoised, color="blue")
         max_peak = denoised[maxs][max_peak_i]
@@ -122,7 +194,6 @@ def algo_v1(data: np.ndarray, plot: bool = False) -> float:
         plt.plot(maxs, denoised[maxs], "x")
 
     tof = np.average(maxs, weights=range(len(maxs), 0, -1))
-
 
     #tof = denoised.dot(range(len(denoised))) / np.sum(denoised)
 
@@ -138,10 +209,11 @@ class Window:
     start_index: int
     width: int
 
+
 def find_best_window(data: np.ndarray, width: int) -> Window:
     start_index = 2500
     resolution = 50
-    
+
     highest_sum = 0
     best_window = Window(start_index=start_index, width=width)
 
@@ -190,6 +262,7 @@ class NoiseThresholdv1(object):
         else:
             return 60.0
 
+
 class MainBangDetectorv1(object):
     def __init__(self):
         pass
@@ -200,7 +273,7 @@ class MainBangDetectorv1(object):
 
     def process(self, data, noise_threshold) -> dict:
 
-        output = {'main_bang_start':None, 'main_bang_end':None}
+        output = {'main_bang_start': None, 'main_bang_end': None}
 
         output['main_bang_start'] = self._find_start(data, noise_threshold)
         output['main_bang_end'] = self._find_end(data, noise_threshold, output['main_bang_start'])
@@ -208,7 +281,7 @@ class MainBangDetectorv1(object):
         return output
 
     def _find_start(self, data, noise_threshold):
-        for index,sample in data.items():
+        for index, sample in data.items():
             if sample > noise_threshold:
                 return index
         return None
@@ -240,6 +313,7 @@ class MainBangDetectorv1(object):
                 return minimum_index
         return None
 
+
 class MainBangDetectorMinimalDelay(object):
     def __init__(self, minimal_delay):
         self.minimal_delay = minimal_delay
@@ -249,7 +323,7 @@ class MainBangDetectorMinimalDelay(object):
 
     def process(self, data, noise_threshold):
 
-        output = {'main_bang_start':None, 'main_bang_end':None}
+        output = {'main_bang_start': None, 'main_bang_end': None}
 
         output['main_bang_start'] = self._find_start(data, noise_threshold)
         output['main_bang_end'] = self._find_end(data, noise_threshold, output['main_bang_start'] + self.minimal_delay)
@@ -257,7 +331,7 @@ class MainBangDetectorMinimalDelay(object):
         return output
 
     def _find_start(self, data, noise_threshold):
-        for index,sample in data.items():
+        for index, sample in data.items():
             if sample > noise_threshold:
                 return index
         return None
@@ -269,7 +343,7 @@ class MainBangDetectorMinimalDelay(object):
         return None
 
         #inflection_index = self._find_neg_inflection(data[start_idx:])
-        #return self._find_main_bang_minimum(data[inflection_index:], noise_threshold)
+        # return self._find_main_bang_minimum(data[inflection_index:], noise_threshold)
 
     def _find_neg_inflection(self, data):
         max = 0
@@ -294,6 +368,7 @@ class MainBangDetectorMinimalDelay(object):
                 return minimum_index
         return None
 
+
 class CenterOfMassv1(object):
     def __init__(self):
         pass
@@ -309,6 +384,7 @@ class CenterOfMassv1(object):
         if data.sum() == 0:
             return 0
         return data.dot(data.index) // data.sum()
+
 
 class CenterOfMassLin(object):
     def __init__(self):
@@ -327,6 +403,7 @@ class CenterOfMassLin(object):
             return 0
 
         return data.dot(data.index) // data.sum()
+
 
 class CenterOfMassQuad(object):
     def __init__(self):
@@ -347,6 +424,7 @@ class CenterOfMassQuad(object):
             return 0
 
         return data2.dot(data2.index) // data2.sum()
+
 
 class CenterOfMassQuadwGain(object):
     def __init__(self, map_contiguous, gain_map, map_name):
@@ -384,7 +462,7 @@ class CenterOfMassQuadwGain(object):
                     try:
                         gain_val = next(gain_it)
                     except StopIteration:
-                        gain_val = self.gain_map[-1] # keep last value
+                        gain_val = self.gain_map[-1]  # keep last value
 
                     sum_weighted_val += idx*val*gain_val
                     sum_val += val*gain_val
@@ -393,11 +471,13 @@ class CenterOfMassQuadwGain(object):
             return 0
         return sum_weighted_val // sum_val
 
+
 class EdgeDetectorwGain(object):
     def __init__(self, map_contiguous, gain_map, map_name):
         self.map_contiguous = map_contiguous
         self.gain_map = gain_map
         self.map_name = map_name
+
     def name(self):
         return 'EdgeDetectorwGain_' + self.map_name
 

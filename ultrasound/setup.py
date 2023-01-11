@@ -16,7 +16,9 @@ with open(Path(BASE_DIR, "requirements.txt")) as file:
 test_packages: list[str] = []
 
 dev_packages: list[str] = [
-    "rope"
+    "rope",
+    "flake8",
+    "autopep8"
 ]
 
 docs_packages: list[str] = []

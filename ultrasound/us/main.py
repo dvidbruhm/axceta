@@ -11,6 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from rich import print
+from scipy import signal
 
 import us.data as data
 import us.plot as plot
@@ -122,7 +123,7 @@ def raw_ultrasound_algo(data_path: Path):
 
     plt.plot(range(len(df_sorted)),
              df_sorted["cdm_ToF"], color="orange", label="CDM")
-    #plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF2"], color="blue", label="CDM")
+    # plt.plot(range(len(df_sorted)), df_sorted["cdm_ToF2"], color="blue", label="CDM")
     plt.plot(range(len(df_sorted)),
              df_sorted["wf_ToF"], color="black", label="WF")
     plt.plot(range(len(df_sorted)),
@@ -131,7 +132,7 @@ def raw_ultrasound_algo(data_path: Path):
              df_sorted["output_TOF_v1"], color="red", label="output v1")
     plt.legend(loc="best")
     plt.show()
-    #plt.plot(df_LC_sorted["LC_AcquisitionTime"], df_LC_sorted["LC_FeedRemainingM3"])
+    # plt.plot(df_LC_sorted["LC_AcquisitionTime"], df_LC_sorted["LC_FeedRemainingM3"])
     # plt.show()
 
     indices_to_plot = [10, 50]
@@ -344,13 +345,11 @@ def CDM_window_test(data_path: Path):
     silo_nb = data_path.name.split(".")[0][:-1]
     silo_a_path = Path(f"{data_path.parent}/{silo_nb}A.csv")
     silo_b_path = Path(f"{data_path.parent}/{silo_nb}B.csv")
-    silo_a = pd.DataFrame(pd.read_csv(silo_a_path, converters={
-                          "rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
-    silo_b = pd.DataFrame(pd.read_csv(silo_b_path, converters={
-                          "rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
-    #silo_a = df[df["LocationName"] == f"Avinor-{silo_nb}A"].reset_index()
-    #silo_b = df[df["LocationName"] == f"Avinor-{silo_nb}B"].reset_index()
-    #silo_a = silo_a.sort_values(by="AcquisitionTime")
+    silo_a = pd.DataFrame(pd.read_csv(silo_a_path, converters={"rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
+    silo_b = pd.DataFrame(pd.read_csv(silo_b_path, converters={"rawData": json.loads, "AcquisitionTime": pd.to_datetime}))
+    # silo_a = df[df["LocationName"] == f"Avinor-{silo_nb}A"].reset_index()
+    # silo_b = df[df["LocationName"] == f"Avinor-{silo_nb}B"].reset_index()
+    # silo_a = silo_a.sort_values(by="AcquisitionTime")
 
     window_sizes = [8000, 5000, 4000, 3000]
     for ws in window_sizes:
@@ -386,8 +385,8 @@ def CDM_window_test(data_path: Path):
     plt.legend(loc="best")
     plt.show()
 
-    #test_data = np.array(silo_a.loc[210, "rawData"])
-    #computed_cdm = algos.compute_cdm(test_data[2500:], 2500)
+    # test_data = np.array(silo_a.loc[210, "rawData"])
+    # computed_cdm = algos.compute_cdm(test_data[2500:], 2500)
 
     colors = ["red", "orange", "green"]
     ys = [(0.2, 0.4), (0.4, 0.6), (0.6, 0.8)]
@@ -467,7 +466,7 @@ def compare_error_metrics(data_path1: Path, data_path2: Path):
             d_mae = error_cdm.mean()
             error_info = ErrorInfo(mae=round(d_mae, 2), occurences=len(d))
             errors.append(error_info)
-            #print(f"| {t1:1.0f} m - {t2:1.0f} m | mean error: {d_mae:5.2f} |")
+            # print(f"| {t1:1.0f} m - {t2:1.0f} m | mean error: {d_mae:5.2f} |")
 
         return errors, full_info
 
@@ -538,9 +537,95 @@ def compare_wavefronts(data_path: Path):
     print(data.columns)
 
 
-# ML ---------
+@app.command()
+def signal_separation(data_path: Path):
+    from sklearn.decomposition import FastICA
+    indices = list(range(400, 430))
+    data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime, "rawData": json.loads})
+    data = data[data["LocationName"] == "Avinor-1485B"].reset_index()
+    raw_signals = [np.array(data.loc[i, "rawData"])[2500:30600] for i in indices]
+    raw_signals = np.stack([signal.resample_poly(raw_signal.astype(float), 1, 10) for raw_signal in raw_signals], axis=1)
+    print(raw_signals.shape)
+
+    ica = FastICA(n_components=1, whiten="arbitrary-variance")
+    raw_signals_ = ica.fit_transform(raw_signals)
+    print(raw_signals_.shape)
+
+    plt.subplot(3, 1, 1)
+    plt.plot(raw_signals)
+    plt.subplot(3, 1, 2)
+    raw_signals_ = raw_signals_.squeeze() + 0.018
+    plt.plot(raw_signals_)
+    plt.subplot(3, 1, 3)
+    sample = np.array(data.loc[60, "rawData"][2500:30600])
+    sample = signal.resample_poly(sample.astype(float), 1, 10)
+    print(raw_signals_)
+    print(sample)
+    plt.plot(sample)
+    plt.plot(sample - raw_signals_)
+    plt.show()
+
 
 @app.command()
+def test_custom_wavefront(data_path: Path):
+    data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime, "rawData": json.loads})
+    data = data[data["LocationName"] == "Avinor-1483A"].reset_index()
+
+    data = data
+    data["custom_wf"] = data.apply(lambda x: algos.wavefront(x["rawData"], x["temperature"], 0.5, 0.5), axis=1)
+
+    plt.plot(data["wf_ToF"] / 2, ".", label="WF")
+    plt.plot(data["cdm_ToF"] / 2, ".", label="CDM")
+    plt.plot(data["PGA_wf_ToF"] / 2, ".", label="PGA_WF")
+    plt.plot(data["custom_wf"], "-", label="CustomWF")
+    plt.legend(loc="best")
+    plt.show()
+
+    indices = [407, 408, 409]
+    plt_count = 1
+    for i in indices:
+        plt.subplot(len(indices), 1, plt_count)
+        plt.plot(data.loc[i, "rawData"])
+        plt.axvline(data.loc[i, "PGA_wf_ToF"] / 2, color="blue", label="pga_wf")
+        plt.axvline(data.loc[i, "wf_ToF"] / 2, color="red", label="wf")
+        plt.axvline(data.loc[i, "custom_wf"], color="green", label="custom_wf")
+        plt.axvline(data.loc[i, "cdm_ToF"] / 2, color="orange", label="cdm")
+        plt.legend(loc="best")
+        plt_count += 1
+    plt.show()
+
+
+@app.command()
+def test_custom_wavefront_2(data_path: Path):
+    data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime, "rawData": json.loads})
+    print(data.columns)
+    print(data["LocationName"].unique())
+
+    data = data[data["LocationName"] == "CDPQA-001"].reset_index()
+    data["custom_wf"] = data.apply(lambda x: algos.wavefront(x["rawData"], x["temperature"], 0.5, 0.5), axis=1)
+
+    plt.plot(data["CDMIndex"] / 2, ".", label="cdm")
+    plt.plot(data["WFIndex"] / 2, ".", label="wf")
+    plt.plot(data["custom_wf"], ".", label="custom wf")
+    plt.legend(loc="best")
+    plt.show()
+
+    indices = [624, 742]
+    plt_count = 1
+    for i in indices:
+        plt.subplot(len(indices), 1, plt_count)
+        plt.plot(data.loc[i, "rawData"])
+        plt.axvline(data.loc[i, "WFIndex"] / 2, color="red", label="wf")
+        plt.axvline(data.loc[i, "custom_wf"], color="green", label="custom_wf")
+        plt.axvline(data.loc[i, "CDMIndex"] / 2, color="orange", label="cdm")
+        plt.legend(loc="best")
+        plt_count += 1
+    plt.show()
+
+# ML ---------
+
+
+@ app.command()
 def train_excel(
         data_path: Path, xls_path: Path, epochs: int, learning_rate: float, batch_size: int, loss_fn: str, kernels: List[int],
         train_size: float, small_dataset: bool = False):
@@ -548,7 +633,7 @@ def train_excel(
                    batch_size, kernels, loss_fn, train_size, small_dataset)
 
 
-@app.command()
+@ app.command()
 def train_parquets(
         data_path: str, epochs: int, learning_rate: float, batch_size: int, loss_fn: str, kernels: List[int],
         train_size: float, small_dataset: bool = False):
@@ -557,7 +642,7 @@ def train_parquets(
                      batch_size, kernels, loss_fn, train_size, small_dataset)
 
 
-@app.command()
+@ app.command()
 def hyperparam_search_parquets(data_path: str, train_size: float):
     import logging
     logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
@@ -580,12 +665,12 @@ def hyperparam_search_parquets(data_path: str, train_size: float):
         num += 1
 
 
-@app.command()
+@ app.command()
 def viz_excel(xls_path: Path, data_path: Path, model_path: Path):
     ml.viz_excel(xls_path, data_path, model_path)
 
 
-@app.command()
+@ app.command()
 def viz_parquets(model_path: Path = Path(), parquet_path: Path = Path()):
     ml.viz_parquets(model_path, parquet_path)
 
@@ -594,7 +679,7 @@ def viz_parquets(model_path: Path = Path(), parquet_path: Path = Path()):
 
 # Timeseries Forecasting -> prediction of next silo fill date
 
-@app.command()
+@ app.command()
 def predict_next_fill(silo_nb: str, data_path: Path = Path("data/Timeseries/Loadcell_v3.csv")):
 
     silo_name_a = f"Avinor-{silo_nb}A"
@@ -602,9 +687,9 @@ def predict_next_fill(silo_nb: str, data_path: Path = Path("data/Timeseries/Load
     dfA = f_algos.read_load_cell_data(data_path, silo_name_a, version="v2")
     dfB = f_algos.read_load_cell_data(data_path, silo_name_b, version="v2")
 
-    #split_date = "2022-10-05 12:00:00"
-    #dfA = dfA.loc[dfA.index <= split_date]
-    #dfB = dfB.loc[dfB.index <= split_date]
+    # split_date = "2022-10-05 12:00:00"
+    # dfA = dfA.loc[dfA.index <= split_date]
+    # dfB = dfB.loc[dfB.index <= split_date]
 
     not_both_flat = f_algos.find_not_both_flat(
         dfA, dfB, min_len=48, debug=False)
@@ -653,7 +738,7 @@ def predict_next_fill(silo_nb: str, data_path: Path = Path("data/Timeseries/Load
         plt.show()
 
 
-@app.command()
+@ app.command()
 def viz_loadcell_data(silo_nb: str, data_path: Path = Path("data/Timeseries/Loadcell_v3.csv")):
 
     train_size = 0.4
@@ -690,7 +775,7 @@ def viz_loadcell_data(silo_nb: str, data_path: Path = Path("data/Timeseries/Load
         current_df[current_silo_name].values, debug=False)
     df = current_df[np.array(is_flat) == False]
     fill_indices = f_algos.find_silo_fills(df[current_silo_name].values)
-    #fill_indices.insert(0, 50)
+    # fill_indices.insert(0, 50)
     print(fill_indices)
     fill_rate_info = f_algos.get_fill_rate_info(
         fill_indices, df, current_silo_name, big_cycles)
@@ -741,7 +826,7 @@ def viz_loadcell_data(silo_nb: str, data_path: Path = Path("data/Timeseries/Load
     plt.show()
 
 
-@app.command()
+@ app.command()
 def darts_lib_test(silo_name: str, data_path: Path = Path("data/Timeseries/Load_Cells_Levels.csv")):
     from darts.timeseries import TimeSeries
     from darts.models.forecasting.auto_arima import AutoARIMA
@@ -758,13 +843,13 @@ def darts_lib_test(silo_name: str, data_path: Path = Path("data/Timeseries/Load_
         plt.subplot(2, 1, i+1)
         plt.plot(df[silo_name], ".", color="gray")
         plt.plot(abs(df[silo_name].diff()))
-        #df[abs(df[silo_name].diff()) < 0.0001] = np.nan
+        # df[abs(df[silo_name].diff()) < 0.0001] = np.nan
         series = TimeSeries.from_dataframe(df)
         series.plot(linewidth=3)
 
     plt.show()
 
-    #series, _ = series.split_before(pd.Timestamp("20220730"))
+    # series, _ = series.split_before(pd.Timestamp("20220730"))
     _, series = series.split_after(pd.Timestamp("20220715"))
 
     train, val = series.split_before(0.45)

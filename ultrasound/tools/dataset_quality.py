@@ -142,29 +142,37 @@ class ErrorInfo:
     occurences: int
 
 
-def compute_metrics(data: pd.DataFrame) -> Tuple[List[ErrorInfo], ErrorInfo]:
+def compute_metrics(data: pd.DataFrame, by: str, steps: List) -> Tuple[List[ErrorInfo], ErrorInfo]:
     """Compute the error of a given dataset
 
     Parameters
     ----------
     data : pd.DataFrame
         data containing all the useful columns for computing the error
+    by : str
+        column name to compute metrics versus (distance or temperature)
+    steps : list
+        steps by which to compute the metrics
 
     Returns
     -------
     List[ErrorInfo], ErrorInfo
         All info of the computed errors
     """
+    assert by in ["distance", "temperature"], f"Can only compute metrics of dataset by distance or temperature : by={by}"
     errors = []
     error_cdm_kg = abs(data["loadcell_weight"] - data["weight"])
     full_mae = error_cdm_kg.mean()
-    full_info = ErrorInfo(mae=round(full_mae, 2),
-                          occurences=len(data))
-    steps = range(0, 10)
+    full_info = ErrorInfo(mae=round(full_mae, 2), occurences=len(data))
     for i in range(1, len(steps)):
         t1 = steps[i - 1]
         t2 = steps[i]
-        d = data[(data["loadcell_dist"] > t1) & (data["loadcell_dist"] < t2)]
+        match by:
+            case "distance":
+                d = data[(data["loadcell_dist"] >= t1) & (data["loadcell_dist"] < t2)]
+            case "temperature":
+                d = data[(data["temperature"] >= t1) & (data["temperature"] < t2)]
+
         error_cdm = abs(d["loadcell_weight"] - d["weight"])
         d_mae = error_cdm.mean()
         error_info = ErrorInfo(mae=round(d_mae, 2), occurences=len(d))
@@ -176,6 +184,22 @@ def compute_metrics(data: pd.DataFrame) -> Tuple[List[ErrorInfo], ErrorInfo]:
 def assert_col(df: pd.DataFrame, col_name: str, message: str):
     if col_name:
         assert col_name in df.columns, message
+
+
+def create_table(errors: List[ErrorInfo], steps: List, silo: str, full_error: ErrorInfo, col_name: str, title: str):
+    # Define and create a nice table with error infos
+    table = Table(title=title)
+    color = "cyan"
+    table.add_column(col_name, justify="center", style="yellow")
+    table.add_column("Nb data", justify="center", style=color)
+    table.add_column("Mean error (ton)", justify="center", style=color)
+
+    for i, (err, step) in enumerate(zip(errors[:-1], steps[:-1])):
+        table.add_row(f"{round(step)} -> {round(steps[i + 1])}", f"{errors[i].occurences}", f"{errors[i].mae}")
+    table.add_row("all", f"{full_error.occurences}", f"{full_error.mae}")
+
+    console = Console()
+    console.print(table)
 
 
 @app.command()
@@ -266,22 +290,18 @@ def main(
         df["weight"] = df[weight_col_name] / 1000
         df["loadcell_weight"] = df[loadcell_weight_col_name] / 1000
 
-        # Compute the error metrics
-        errors_by_dist, full_error = compute_metrics(df)
+        # Compute the error metrics by distance
+        steps = range(0, 10)
+        errors_by_dist, full_error = compute_metrics(df, by="distance", steps=steps)
+        create_table(errors_by_dist, steps, silo, full_error, col_name="Depth (m)",
+                     title=f"[green]Errors between measured data and loadcells for {silo} silo by distance.[/green]")
 
-        # Define and create a nice table with error infos
-        table = Table(title=f"[green]Errors between measured data and loadcells for {silo} silo.[/green]")
-        color = "cyan"
-        table.add_column("Depth (m)", justify="center", style="yellow")
-        table.add_column("Nb data", justify="center", style=color)
-        table.add_column("Mean error (ton)", justify="center", style=color)
+        # Compute the error metrics by temperature
+        steps = np.linspace(min(df["temperature"].values), max(df["temperature"].values), 10)
+        errors_by_temp, full_error = compute_metrics(df, by="temperature", steps=steps)
+        create_table(errors_by_temp, steps, silo, full_error, col_name="Temperature (°C)",
+                     title=f"[green]Errors between measured data and loadcells for {silo} silo by temperature.[/green]")
 
-        for i in range(len(errors_by_dist)):
-            table.add_row(f"{i} -> {i+1}", f"{errors_by_dist[i].occurences}", f"{errors_by_dist[i].mae}")
-        table.add_row("all", f"{full_error.occurences}", f"{full_error.mae}")
-
-        console = Console()
-        console.print(table)
     else:
         print("[blue] ------------------------------ [/blue]")
         print("Could not compute the errors between the measures and the loadcell because not enough valid columns where given. We need : ")
