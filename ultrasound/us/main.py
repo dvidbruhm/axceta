@@ -597,12 +597,28 @@ def test_custom_wavefront(data_path: Path):
 
 @app.command()
 def test_custom_wavefront_2(data_path: Path):
+    import tools.wavefront as wf
+
     data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime, "rawData": json.loads})
+    data = data.dropna()
+    data = data[data["LocationName"] == "Isoporc-6045"]
+    data = data[data["config_id"].str.contains("log-1-")].reset_index()
+
+    def find_pulse_count(x):
+        i = x["config_id"].find("-p")
+        if i == -1:
+            return 31
+        else:
+            return int(str(x["config_id"])[i+2:])
+    data["pulse_count"] = data.apply(lambda x: find_pulse_count(x), axis=1)
+    print(data["config_id"].unique())
+    print(data["pulse_count"].unique())
     print(data.columns)
     print(data["LocationName"].unique())
 
-    data = data[data["LocationName"] == "CDPQA-001"].reset_index()
-    data["custom_wf"] = data.apply(lambda x: algos.wavefront(x["rawData"], x["temperature"], 0.5, 0.5), axis=1)
+    #data = data[data["LocationName"] == "CDPQA-001"].reset_index()
+    data["custom_wf"] = data.apply(lambda x: wf.wavefront(x["rawData"], x["temperature"], 0.5, 0.5, x["pulse_count"]), axis=1)
+    data["mainbang_index"] = data.apply(lambda x: wf.detect_main_bang_end(x["rawData"], x["pulse_count"]), axis=1)
 
     plt.plot(data["CDMIndex"] / 2, ".", label="cdm")
     plt.plot(data["WFIndex"] / 2, ".", label="wf")
@@ -610,14 +626,20 @@ def test_custom_wavefront_2(data_path: Path):
     plt.legend(loc="best")
     plt.show()
 
-    indices = [624, 742]
+    indices = [11, 1002, 1003, 1004, 1005, 1006]
     plt_count = 1
     for i in indices:
+        print(data.loc[i, "LocationName"])
+        print(data.loc[i, "WFIndex"] / 2)
+        print(data.loc[i, "custom_wf"])
+        d = data.loc[i]
+        print(wf.wavefront(d["rawData"], d["temperature"], 0.5, 0.5, 31))
         plt.subplot(len(indices), 1, plt_count)
         plt.plot(data.loc[i, "rawData"])
         plt.axvline(data.loc[i, "WFIndex"] / 2, color="red", label="wf")
         plt.axvline(data.loc[i, "custom_wf"], color="green", label="custom_wf")
         plt.axvline(data.loc[i, "CDMIndex"] / 2, color="orange", label="cdm")
+        plt.axvline(data.loc[i, "mainbang_index"], color="blue", label="mainbang_end")
         plt.legend(loc="best")
         plt_count += 1
     plt.show()
@@ -673,6 +695,100 @@ def viz_excel(xls_path: Path, data_path: Path, model_path: Path):
 @ app.command()
 def viz_parquets(model_path: Path = Path(), parquet_path: Path = Path()):
     ml.viz_parquets(model_path, parquet_path)
+
+
+@ app.command()
+def test_regression(data_path: Path):
+    data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime, "rawData": json.loads})
+    print(data.columns)
+    data = data.drop_duplicates(subset='AcquisitionTime', keep="first")
+    plt.plot(data["AcquisitionTime"], data["filledVolume_WF_Dave"])
+    plt.show()
+
+    values = data["filledVolume_WF_Dave"].values
+    time = data["AcquisitionTime"].values
+
+    v = []
+    t = []
+    for current_x in range(300, 500):
+        values_prev = values[current_x-48:current_x+1]
+        time_prev = time[current_x-48:current_x+1]
+        smoothed_val = algos.auto_regression_smoothing(time_prev, values_prev)
+        smoothed_time = time[current_x]
+        v.append(smoothed_val)
+        t.append(smoothed_time)
+    plt.plot(time, values)
+    plt.plot(t, v, ".")
+    plt.show()
+
+    time = time.astype(np.float)
+    time = (time - np.min(time)) / (np.max(time) - np.min(time))
+
+    def reg(x, y):
+        A = np.vstack([x, np.ones(len(x))]).T
+        m, c = np.linalg.lstsq(A, y, rcond=None)[0]
+        y_reg = m * x + c
+        r2 = algos.r_squared(y, y_reg)
+        return y_reg, r2
+
+    max_reg_len = 48
+    min_r2_score = 0.8
+
+    x = time
+    y = values
+
+    x_smoothed = []
+    y_smoothed = []
+    for current_x in range(300, 500):
+        print(current_x)
+        best_r2 = 0
+        best_xreg = []
+        best_yreg = []
+        best_y_reg = []
+        for i in range(current_x - max_reg_len, current_x - 5):
+            xreg = x[i:current_x]
+            yreg = y[i:current_x]
+
+            y_reg, r2 = reg(xreg, yreg)
+            print(i, max_reg_len, current_x, r2, best_r2, len(xreg))
+            if r2 > best_r2:
+                print("best found")
+                best_r2 = r2
+                best_xreg = xreg
+                best_yreg = yreg
+                best_y_reg = y_reg
+
+        x_smoothed.append(best_xreg[-1])
+        smoothed_value = best_yreg[-1]
+        if best_r2 > min_r2_score:
+            smoothed_value = best_y_reg[-1] * 0.9 + best_yreg[-1] * 0.1
+        smoothed_value = max(0, smoothed_value)
+        y_smoothed.append(smoothed_value)
+
+        print(best_r2)
+        #plt.plot(x, y)
+        #plt.plot(best_xreg, best_y_reg)
+        #plt.plot(best_xreg, best_yreg, '.')
+        # plt.show()
+    plt.plot(x, y)
+    plt.plot(x_smoothed, y_smoothed, '.')
+    plt.show()
+
+    xs, ys = algos.split_silo_fill(time, values, threshold=0.2)
+    plt.subplot(2, 1, 1)
+    for x, y in zip(xs, ys):
+        plt.plot(x, y, ".")
+        x = x[:int(len(x) * 0.5)]
+        y = y[:int(len(y) * 0.5)]
+
+        y_reg, r2 = reg(x, y)
+        print(r2)
+
+        plt.plot(x, y_reg)
+
+    plt.subplot(2, 1, 2)
+    plt.plot(data["AcquisitionTime"], data["filledVolume_WF_Dave"])
+    plt.show()
 
 
 # ---------------

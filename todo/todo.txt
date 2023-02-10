@@ -1,14 +1,6 @@
-Compare error of all sensor configs, but seperated by distance (eg. 1-3 meters, 3-5 meters, etc.) and find if log-1 is better in all distances or not
-verifier si il y a une correelation entre les raws pas de signal et un autre parametre que la distance
-investiguer les oscillations de temperastuure
-<<<<<<< HEAD
-Faire script qui calcul l'erreur par rapport au loadcell, moyenne et par distance, pour pouvoir facilement avoir une métrique d'erreur pour voir si nos résultats s'améliore en changeant de config/méthode
-Accuracy vs Temperature
-Refaire l'inventaire des cas où ca marche bien, moins bien (distance, silo, temperature, etc..)
-=======
-Add error in % also
-Redo for everything config to find if some are better at the beginning
-Check errors with the variable window size method
-Compare wf and CDM algos, verify if still true that wf is better than cdm at low distance (<2m)
-Compare the two wf algos: pga wf and wf and see the difference
->>>>>>> b8aabb465d4499566ba5acdc89e62cfed3c51eef
+(C) Translate octave script to python from guillaume
+(A) Verify/modify main bang detection algo with problematic raw data
+(C) Verify/fix algo to work on low resolution raw data
+(B) Try to replicate the PGA raw processeing (bandpass, peak hold, low pass, etc.)
+(A) Continue smoothing algos exploration: refine spike detection, make all filters more easily chainable, explore more options: gregstanleyandassociates.com/whitepapers/FaultDiagnosis/filtering
+(B) Start project on disease detection using loadcell data on Avinor: detect a decrease in food consumption of 30% or more for 2 days. Use both silos A and B conjunctly to determine rate of consumption and start/end of chicken cycles

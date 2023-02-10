@@ -78,9 +78,107 @@ def raw_data_quality(data: np.ndarray, plot: bool = False) -> float:
     return quality
 
 
-def detect_main_bang(data) -> Tuple(int, int):
-    # TODO
-    pass
+def find_local_minimas(data):
+    """Find local minimums in 1D array
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        1D array of data
+
+    Returns
+    -------
+    min_indices : numpy.ndarray
+        indices of local minimums
+    """
+    data = np.array(data)
+    x = np.r_[data[0] + 1, data, data[-1] + 1]
+    ups, = np.where(x[:-1] < x[1:])
+    downs, = np.where(x[:-1] > x[1:])
+    minend = ups[np.unique(np.searchsorted(ups, downs))]
+    minbeg = downs[::-1][np.unique(np.searchsorted(-downs[::-1], -ups[::-1]))][::-1]
+    min_indices = ((minbeg + minend) / 2).astype(int)
+    return min_indices
+
+
+def detect_main_bang_end(data, max_mainbang_index=3000, min_plateau_len=500, min_raw_data_len=10000) -> int:
+    """Automatically detect the end of the main bang in a raw ultrasound reading
+
+    Parameters
+    ----------
+    data : list or numpy.ndarray
+        raw data of the ultrasound
+    max_mainbang_index : int, optional
+        max possible length of the main bang, by default 3000
+    min_plateau_len : int, optional
+        minimum length for which to consider a plateau in the main bang, by default 500
+    min_raw_data_len : int, optional
+        minimum possible length of the raw ultrasound data to verify if the data is valid, by default 10000
+
+    Returns
+    -------
+    int
+        index of the end of the main bang
+    """
+
+    # Return -1 as an error if the raw data is not valid
+    if len(data) < min_raw_data_len:
+        return -1
+    data = np.array(data)
+
+    # Find max value of the bang
+    max_value = max(data[:max_mainbang_index])
+    threshold = max_value / 2
+
+    # Find all the max "plateaus" in the bang, as there can be multiple
+    # and we want to make sure we find the last one to start from there
+    # to find the end of the bang (and not find a false end of the bang
+    # which could be between two plateaus)
+    max_count = 0
+    max_counts = []
+    for i in range(1, max_mainbang_index):
+        d = data[i]
+        prev_d = data[i - 1]
+
+        if d > max_value - 1:
+            max_count += 1
+        else:
+            if max_count != 0:
+                max_counts.append((i, max_count))
+            max_count = 0
+
+    # Find the end of the last max plateau
+    last_max_index = 0
+    for i, max_count in max_counts:
+        if max_count > min_plateau_len:
+            last_max_index = i
+
+    # Find the first minima following the last plateau
+    mins = find_local_minimas(data)
+
+    first_min_index = 0
+    for m in mins:
+        if m > last_max_index:
+            first_min_index = m
+            break
+
+    # Find the first time the data goes under a certain threshold
+    # following the last plateau
+    threshold_index = max_mainbang_index
+    for i in range(last_max_index, max_mainbang_index):
+        d = data[i]
+        prev_d = data[i - 1]
+        if max_count > min_plateau_len:
+            if prev_d > d and d < threshold:
+                threshold_index = i
+                break
+
+    # We are keeping only the index of the first minima following
+    # the last max plateau as it seems to be the more robust approach
+    bang_index_end = first_min_index
+    # bang_index_end = min(threshold_index, first_min_index)
+
+    return bang_index_end
 
 
 def wavefront(data, temperature, threshold, window_in_meters, freq=500000):
@@ -112,7 +210,7 @@ def wavefront(data, temperature, threshold, window_in_meters, freq=500000):
         return -1
 
     # Index at which to cut the main bang
-    bang_index = 2500
+    bang_index = detect_main_bang_end(data)
 
     # Compute the threshold and the speed of sound based on the temperature
     threshold = threshold * max(data[bang_index:])
@@ -126,7 +224,7 @@ def wavefront(data, temperature, threshold, window_in_meters, freq=500000):
     max_index = argmax(data[bang_index:]) + bang_index
 
     # Start and end index of the window in which to check for the threshold
-    start = int(max_index - window_in_samples / 2)
+    start = max(bang_index, int(max_index - window_in_samples / 2))
     end = int(max_index + window_in_samples / 2)
 
     # Find the index at which the data is at the threshold inside the window
@@ -243,258 +341,83 @@ def compute_cdm_in_window(data: np.ndarray, start_index: int, window_size: int) 
     return cdm, win
 
 
-class NoiseThresholdv1(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def name(cls):
-        return 'NoiseThresholdv1'
-
-    def process(self, data):
-        average_post_main_bang = data[(len(data) // 5):].mean()
-        nearest_gate = (average_post_main_bang // 15) * 15.0
-
-        if nearest_gate < 15.0:
-            return 15.0
-        elif nearest_gate < 60.0:
-            return nearest_gate
-        else:
-            return 60.0
-
-
-class MainBangDetectorv1(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def name(cls):
-        return 'MainBangDetectorv1'
-
-    def process(self, data, noise_threshold) -> dict:
-
-        output = {'main_bang_start': None, 'main_bang_end': None}
-
-        output['main_bang_start'] = self._find_start(data, noise_threshold)
-        output['main_bang_end'] = self._find_end(data, noise_threshold, output['main_bang_start'])
-
-        return output
-
-    def _find_start(self, data, noise_threshold):
-        for index, sample in data.items():
-            if sample > noise_threshold:
-                return index
-        return None
-
-    def _find_end(self, data, noise_threshold, start_idx):
-        inflection_index = self._find_neg_inflection(data[start_idx:])
-        return self._find_main_bang_minimum(data[inflection_index:], noise_threshold)
-
-    def _find_neg_inflection(self, data):
-        max = 0
-        half_max = 0
-        for index, sample in data.items():
-            if sample > max:
-                max = sample
-                half_max = sample / 2
-            elif sample < half_max:
-                return index
-        return None
-
-    def _find_main_bang_minimum(self, data, noise_threshold):
-        minimum_index = data.index[0]
-        for index, sample in data.items():
-            minimum_sample = data[minimum_index]
-            if sample < minimum_sample:
-                minimum_index = index
-                minimum_sample = sample
-
-            if (minimum_sample < noise_threshold) or (sample > minimum_sample + 4*15):
-                return minimum_index
-        return None
-
-
-class MainBangDetectorMinimalDelay(object):
-    def __init__(self, minimal_delay):
-        self.minimal_delay = minimal_delay
-
-    def name(self):
-        return 'MainBangDetectorMinimalDelay_' + str(self.minimal_delay)
-
-    def process(self, data, noise_threshold):
-
-        output = {'main_bang_start': None, 'main_bang_end': None}
-
-        output['main_bang_start'] = self._find_start(data, noise_threshold)
-        output['main_bang_end'] = self._find_end(data, noise_threshold, output['main_bang_start'] + self.minimal_delay)
-
-        return output
-
-    def _find_start(self, data, noise_threshold):
-        for index, sample in data.items():
-            if sample > noise_threshold:
-                return index
-        return None
-
-    def _find_end(self, data, noise_threshold, start_idx):
-        for index, sample in data[start_idx:].items():
-            if sample < noise_threshold:
-                return index
-        return None
-
-        #inflection_index = self._find_neg_inflection(data[start_idx:])
-        # return self._find_main_bang_minimum(data[inflection_index:], noise_threshold)
-
-    def _find_neg_inflection(self, data):
-        max = 0
-        half_max = 0
-        for index, sample in data.items():
-            if sample > max:
-                max = sample
-                half_max = sample / 2
-            elif sample < half_max:
-                return index
-        return None
-
-    def _find_main_bang_minimum(self, data, noise_threshold):
-        minimum_index = data.index[0]
-        for index, sample in data.items():
-            minimum_sample = data[minimum_index]
-            if sample < minimum_sample:
-                minimum_index = index
-                minimum_sample = sample
-
-            if (minimum_sample < noise_threshold) or (sample > minimum_sample + 4*15):
-                return minimum_index
-        return None
-
-
-class CenterOfMassv1(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def name(cls):
-        return 'CenterOfMassv1'
-
-    def process(self, data, noise_threshold):
-
-        data[data < noise_threshold] = 0
-
-        if data.sum() == 0:
-            return 0
-        return data.dot(data.index) // data.sum()
-
-
-class CenterOfMassLin(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def name(cls):
-        return 'CenterOfMassLin'
-
-    def process(self, data, noise_threshold):
-
-        data -= noise_threshold
-        data[data < 0] = 0
-
-        if data.sum() == 0:
-            return 0
-
-        return data.dot(data.index) // data.sum()
-
-
-class CenterOfMassQuad(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def name(cls):
-        return 'CenterOfMassQuad'
-
-    def process(self, data, noise_threshold):
-
-        data -= noise_threshold
-        data[data < 0] = 0
-
-        data2 = data.pow(2)
-
-        if data2.sum() == 0:
-            return 0
-
-        return data2.dot(data2.index) // data2.sum()
-
-
-class CenterOfMassQuadwGain(object):
-    def __init__(self, map_contiguous, gain_map, map_name):
-        self.map_contiguous = map_contiguous
-        self.gain_map = gain_map
-        self.map_name = map_name
-
-    def name(self):
-        return 'CenterOfMassQuadwGain_' + self.map_name
-
-    def process(self, data, noise_threshold):
-
-        data -= noise_threshold
-        data[data < 0] = 0
-
-        data2 = data.pow(2)
-
-        sum_weighted_val = 0.0
-        sum_val = 0.0
-
-        if self.map_contiguous:
-            map = np.empty(data2.size)
-            map.fill(self.gain_map[-1])
-            map[:self.gain_map.size] = self.gain_map
-
-            data2 *= map
-
-            sum_weighted_val = data2.dot(data2.index)
-            sum_val = data2.sum()
-        else:
-            gain_it = np.nditer(self.gain_map)
-
-            for idx, val in data2.iteritems():
-                if val or self.map_contiguous:
-                    try:
-                        gain_val = next(gain_it)
-                    except StopIteration:
-                        gain_val = self.gain_map[-1]  # keep last value
-
-                    sum_weighted_val += idx*val*gain_val
-                    sum_val += val*gain_val
-
-        if sum_val == 0:
-            return 0
-        return sum_weighted_val // sum_val
-
-
-class EdgeDetectorwGain(object):
-    def __init__(self, map_contiguous, gain_map, map_name):
-        self.map_contiguous = map_contiguous
-        self.gain_map = gain_map
-        self.map_name = map_name
-
-    def name(self):
-        return 'EdgeDetectorwGain_' + self.map_name
-
-    def process(self, data, noise_threshold):
-
-        data -= noise_threshold
-        data[data < 0] = 0
-
-        if self.map_contiguous:
-            map = np.empty(data.size)
-            map.fill(self.gain_map[-1])
-            map[:self.gain_map.size] = self.gain_map
-
-            data *= map
-
-            edge_idx = data[data.gt(data.max() / 2)].index[0]
-        else:
-            edge_idx = data.size
-
-        return edge_idx
+def r_squared(y, y_hat):
+    y_bar = y.mean()
+    ss_tot = ((y - y_bar)**2).sum()
+    ss_res = ((y - y_hat)**2).sum()
+    return 1 - (ss_res / ss_tot)
+
+
+def linear_regression(x, y):
+    A = np.vstack([x, np.ones(len(x))]).T
+    m, c = np.linalg.lstsq(A, y, rcond=None)[0]
+    y_reg = m * x + c
+    r2 = r_squared(y, y_reg)
+    return y_reg, r2
+
+
+def auto_regression_smoothing(time, values, min_r2_score=0.8, max_regression_len=48, regression_weight=0.9):
+    assert len(values) >= max_regression_len, "There must be more or equal previous data than the maximum regression length."
+
+    values = np.array(values)
+    time = np.array(time)
+
+    time = time.astype(np.float)
+    time = (time - np.min(time)) / (np.max(time) - np.min(time))
+
+    best_r2 = 0
+    best_time = []
+    best_values = []
+    best_values_reg = []
+    for i in range(len(values) - max_regression_len, len(values) - 5, 3):
+        x_slice = time[i:]
+        y_slice = values[i:]
+
+        y_reg, r2 = linear_regression(x_slice, y_slice)
+        if r2 > best_r2:
+            best_r2 = r2
+            best_time = x_slice
+            best_values = y_slice
+            best_values_reg = y_reg
+
+    smoothed_value = best_values[-1]
+    if best_r2 > min_r2_score:
+        smoothed_value = best_values_reg[-1] * regression_weight + best_values[-1] * (1 - regression_weight)
+    smoothed_value = max(0, smoothed_value)
+
+    return smoothed_value
+
+
+def split_silo_fill(x: np.ndarray, y: np.ndarray, threshold=10):
+    smallest_y = np.inf
+    split_points = [0]
+    for i in range(len(x)):
+        current_y = y[i]
+        current_x = x[i]
+
+        if current_y < smallest_y:
+            smallest_y = current_y
+
+        if current_y > smallest_y + threshold:
+            split_points.append(i)
+            smallest_y = np.inf
+    if len(split_points) > 0 and split_points[-1] != len(x) - 1:
+        split_points.append(len(x) - 1)
+    xs = []
+    ys = []
+    for i in range(1, len(split_points)):
+        temp_x = x[split_points[i-1]:min(split_points[i], len(x))]
+        temp_y = y[split_points[i-1]:min(split_points[i], len(x))]
+        xs.append(np.array(temp_x))
+        ys.append(np.array(temp_y))
+    print(split_points)
+    xs[-1] = np.append(xs[-1], xs[-1][-1])
+    ys[-1] = np.append(ys[-1], ys[-1][-1])
+
+    #plt.plot(x, y)
+    # for xt, yt in zip(xs, ys):
+    #    plt.plot(xt, yt)
+    #plt.scatter([x[i] for i in split_points], [y[i] for i in split_points])
+    # plt.show()
+
+    return xs, ys
