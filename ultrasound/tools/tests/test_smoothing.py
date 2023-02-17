@@ -138,10 +138,7 @@ if __name__ == "__main__":
     reg_smooth[0] = spike_filtered[0]
     for i in range(1, len(data["latestAlgo_w_t"].values)):
         if i >= 48:
-            reg_smooth[i] = rs.auto_regression_smoothing(
-                data["AcquisitionTime"].values[i - 48: i + 1],
-                spike_filtered[i - 48: i + 1],
-                {"min_fill_value": 3, "delta_value": 0})
+            reg_smooth[i] = rs.auto_regression_smoothing(data["AcquisitionTime"].values[i - 48: i + 1], spike_filtered[i - 48: i + 1])
         else:
             reg_smooth[i] = spike_filtered[i]
         #reg_smooth[i] = generic_iir_filter(reg_smooth[max(0, i - 48):i], exp_filter, params={"tau": 2, "timestep": 1})[-1]

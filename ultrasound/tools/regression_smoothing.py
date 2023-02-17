@@ -45,7 +45,7 @@ def linear_regression(x, y):
     return y_reg, r2, m, c
 
 
-def auto_regression_smoothing(time, values, params, min_r2_score=0.9, max_regression_len=48, regression_weight=0.9):
+def auto_regression_smoothing(time, values, min_r2_score=0.9, max_regression_len=48, regression_weight=0.9):
     """Live smoothing of a dataset using linear regression
 
     Parameters
@@ -68,9 +68,6 @@ def auto_regression_smoothing(time, values, params, min_r2_score=0.9, max_regres
     """
     assert len(values) >= max_regression_len, "There must be more or equal previous data than the maximum regression length."
     assert len(values) == len(time), "There must be the same number of values and time index."
-
-    if params["delta_value"] > params["min_fill_value"]:
-        return values[-1]
 
     values = np.array(values)
     time = np.array(time, dtype=np.datetime64)
@@ -177,9 +174,10 @@ def smoothing(times, values, prev_smoothed_value, min_r2_score=0.9, max_regressi
             "tau": 2, "timestep": 1, "min_fill_value": min_fill_value, "delta_value": delta_value})
         reg_smoothed_value = 0
     else:
-        reg_smoothed_value = auto_regression_smoothing(
-            times, spike_filtered, {"min_fill_value": min_fill_value, "delta_value": delta_value},
-            min_r2_score, max_regression_len, regression_weight)
+        if delta_value > min_fill_value:
+            reg_smoothed_value = spike_filtered[-1]
+        else:
+            reg_smoothed_value = auto_regression_smoothing(times, spike_filtered, min_r2_score, max_regression_len, regression_weight)
         smoothed_value, _ = exp_filter(prev_smoothed_value, reg_smoothed_value, {
             "tau": 2, "timestep": 1, "min_fill_value": min_fill_value, "delta_value": delta_value})
 
