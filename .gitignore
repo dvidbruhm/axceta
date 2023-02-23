@@ -4,3 +4,9 @@
 **egg-info**
 **~lock**
 **mypy**
+**/**.csv
+**/**.xlsx
+**/**.code-workspace
+.vscode
+ultrasound/data
+silo-noise-reduction/data
