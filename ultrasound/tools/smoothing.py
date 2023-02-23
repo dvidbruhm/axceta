@@ -84,7 +84,7 @@ def auto_regression_smoothing(time, values, min_r2_score=0.9, max_regression_len
     best_time = []
     best_values = []
     best_values_reg = []
-    for i in range(len(values) - max_regression_len, len(values) - 5, 3):
+    for i in range(len(values) - max_regression_len, len(values) - 5, 2):
         x_slice = time[i:]
         y_slice = values[i:]
 
@@ -158,20 +158,22 @@ def spike_filter(prev_filtered_value, current_value, params):
     return current_filtered_value, params
 
 
-def smoothing(times, values, prev_smoothed_value, min_r2_score=0.9, max_regression_len=48, regression_weight=0.9):
-    # TODO make everything a param of the function
-    min_fill_value = 3
+def smoothing(times, values, prev_smoothed_value, bin_max, min_r2_score=0.9, max_regression_len=48, regression_weight=0.9, min_fill_value=3,
+              exp_filter_tau=2, exp_filter_timestep=1, spike_filter_max_perc=5, spike_filter_num_change=2):
 
     assert len(values) == len(times), "There must be the same number of values and time index."
     assert len(values) >= 1, "There must be at least 1 value."
     if len(values) == 1:
         return values[0]
 
-    spike_filtered = generic_iir_filter(values, spike_filter, {"maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 25})
+    spike_filtered = generic_iir_filter(
+        values, spike_filter,
+        {"maximum_change_perc": spike_filter_max_perc, "number_of_changes": spike_filter_num_change, "count": 0, "bin_max": bin_max})
     delta_value = spike_filtered[len(spike_filtered) - 1] - spike_filtered[len(spike_filtered) - 2]
+
     if len(values) < max_regression_len:
         smoothed_value, _ = exp_filter(prev_smoothed_value, spike_filtered[-1], {
-            "tau": 2, "timestep": 1, "min_fill_value": min_fill_value, "delta_value": delta_value})
+            "tau": exp_filter_tau, "timestep": exp_filter_timestep, "min_fill_value": min_fill_value, "delta_value": delta_value})
         reg_smoothed_value = 0
     else:
         if delta_value > min_fill_value:
@@ -179,64 +181,6 @@ def smoothing(times, values, prev_smoothed_value, min_r2_score=0.9, max_regressi
         else:
             reg_smoothed_value = auto_regression_smoothing(times, spike_filtered, min_r2_score, max_regression_len, regression_weight)
         smoothed_value, _ = exp_filter(prev_smoothed_value, reg_smoothed_value, {
-            "tau": 2, "timestep": 1, "min_fill_value": min_fill_value, "delta_value": delta_value})
-
-    return smoothed_value
-
-
-def new_auto_regression_smoothing(time, values, min_r2_score=0.9, max_regression_len=48, regression_weight=0.9):
-    """Live smoothing of a dataset using linear regression
-
-    Parameters
-    ----------
-    time : np.array or list
-        timestamps of each data point
-    values : np.array or list
-        values of each data points
-    min_r2_score : float, optional
-        minimum r squared metric to keep the smoothed data point, by default 0.8
-    max_regression_len : int, optional
-        maximum number of previous data points to use for the linear regression, by default 48
-    regression_weight : float, optional
-        weight of the regression result to use compared to the original data value, by default 0.9
-
-    Returns
-    -------
-    float
-        smoothed data value
-    """
-    assert len(values) >= max_regression_len, "There must be more or equal previous data than the maximum regression length."
-    assert len(values) == len(time), "There must be the same number of values and time index."
-
-    values = np.array(values)
-    time = np.array(time, dtype=np.datetime64)
-
-    time = time.astype(np.float)
-    time = (time - np.min(time)) / (np.max(time) - np.min(time))
-
-    # Sort arrays according to time
-    sort_indices = time.argsort()
-    time = time[sort_indices]
-    values = values[sort_indices]
-
-    best_r2 = -100
-    best_time = []
-    best_values = []
-    best_values_reg = []
-    for i in range(len(values) - max_regression_len, len(values) - 5, 1):
-        x_slice = time[i:]
-        y_slice = values[i:]
-
-        y_reg, r2, _, _ = linear_regression(x_slice, y_slice)
-        if r2 > best_r2:
-            best_r2 = r2
-            best_time = x_slice
-            best_values = y_slice
-            best_values_reg = y_reg
-
-    smoothed_value = best_values[-1]
-    if best_r2 > min_r2_score:
-        smoothed_value = best_values_reg[-1] * regression_weight + best_values[-1] * (1 - regression_weight)
-    smoothed_value = max(0, smoothed_value)
+            "tau": exp_filter_tau, "timestep": exp_filter_timestep, "min_fill_value": min_fill_value, "delta_value": delta_value})
 
     return smoothed_value

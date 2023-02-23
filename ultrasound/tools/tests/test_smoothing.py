@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import json
-import tools.regression_smoothing as rs
+import tools.smoothing as rs
 
 
 def exp_filter_old(prev_filtered_value, current_value, a=0.9):
@@ -66,7 +66,7 @@ def spike_filter(prev_filtered_value, current_value, params):
 
     current_filtered_value = 0
 
-    change_perc = (abs(current_value - prev_filtered_value) / params["max_value"]) * 100
+    change_perc = (abs(current_value - prev_filtered_value) / 25.6) * 100
 
     if change_perc > params["maximum_change_perc"] and params["count"] < params["number_of_changes"]:
         params["count"] += 1

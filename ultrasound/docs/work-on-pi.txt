@@ -1,0 +1,15 @@
+AdaptiveAcquisition -> le script principal
+config_runer.py -> boucle de lecture des mesures
+
+script d'invocation de base: DemeterAcquisition.sh
+
+# Start - stop before/after work
+sudo systemctl stop demeter_acquisition.service
+
+# restart usb when bugged
+usbreset
+- see list of devices, if STM something -> usbreset "STM..."
+
+picocom -b 115200 /dev/ttyACM0
+# to start menu -> CTRL-C
+

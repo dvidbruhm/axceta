@@ -20,3 +20,6 @@ x 2023-01-31 Compare wf and CDM algos, verify if still true that wf is better th
 x 2023-01-31 verifier si il y a une correelation entre les raws pas de signal et un autre parametre que la distance
 x 2023-02-06 Verify metrics script on cloud with dataset from Francis
 x 2023-02-10 Verify/modify smoothing algo on cdpq-1 dataset
+x 2023-02-20 Verify/modify main bang detection algo with problematic raw data
+x 2023-02-22 Translate octave script to python from guillaume
+x 2023-02-22 Try to replicate the PGA raw processeing (bandpass, peak hold, low pass, etc.)

@@ -1,7 +1,4 @@
-(C) Translate octave script to python from guillaume
-x 2023-02-10 Verify/modify smoothing algo on cdpq-1 dataset
-(A) Verify/modify main bang detection algo with problematic raw data
 (C) Verify/fix algo to work on low resolution raw data
-(B) Try to replicate the PGA raw processeing (bandpass, peak hold, low pass, etc.)
-(A) Continue smoothing algos exploration: refine spike detection, make all filters more easily chainable, explore more options: gregstanleyandassociates.com/whitepapers/FaultDiagnosis/filtering
+(C) Continue smoothing algos exploration: refine spike detection, make all filters more easily chainable, explore more options: gregstanleyandassociates.com/whitepapers/FaultDiagnosis/filtering
 (B) Start project on disease detection using loadcell data on Avinor: detect a decrease in food consumption of 30% or more for 2 days. Use both silos A and B conjunctly to determine rate of consumption and start/end of chicken cycles
+Refine/rethink the algo to change acquisition parameters of the device (gain, current, pulse) 
