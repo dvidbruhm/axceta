@@ -1,3 +1,51 @@
+import numpy as np
+
+
+def auto_gain_detection_v2(data, data_range=(0, 255), bang_end=2500):
+    """Analyses a raw ultrasound signal to determine if there need to be more or less gain applied
+
+    Parameters
+    ----------
+    data : list of np.ndarray
+        raw ultrasound signal
+    data_range : tuple, optional
+        min and max data range, by default (0, 255)
+    bang_end : int, optional
+        index of the end of the bang, by default 2500
+
+    Returns
+    -------
+    int
+        1 -> Gain needs to be a stronger
+        0 -> Gain is OK
+        -1 -> Gain needs to be a lower
+    """
+    data = np.array(data)
+    max_value = np.max(data[bang_end:])
+    mean_value = np.mean(data[bang_end:])
+
+    # Remove small noise lower than the mean
+    filt_data = data.copy()
+    filt_data[filt_data < mean_value] = 0
+
+    # Use the normalized signal for the area under curve
+    norm_data = filt_data / max_value
+    area_under_curve = np.sum(norm_data[bang_end:])
+
+    # The max of the signal is too low, need more signal
+    if max_value < data_range[1] * 0.5:
+        return 1
+
+    # The max of the signal is too high, or there is too much signal (the area
+    # under the curve is too high), need less signal
+    if area_under_curve > 2500 or max_value == data_range[1]:
+        return -1
+
+    # Signal is ok: 1. max of the signal is ok, and
+    #               2. area under the curve is not too high
+    return 0
+
+
 def auto_gain_detection(raw_signal, range=(0, 255)):
     """Analyses a raw ultrasound signal to determine if there need to be more or less gain applied
 
@@ -44,14 +92,16 @@ def auto_gain_detection(raw_signal, range=(0, 255)):
 if __name__ == "__main__":
     import pandas as pd
     import matplotlib.pyplot as plt
-    import json
-    data = pd.read_csv("data/FullDatasets/log-1/1485.csv")
-    raw = json.loads(data.loc[0, "rawData"])
-    data = pd.read_csv("data/raw2.csv")
-    raw = list(data["raw_data"].values)
-    print(raw)
-    print(max(raw))
-    plt.plot(raw, '.')
+    import glob
+
+    files = glob.glob("data/test/auc_tests/*.csv")
+    for i, f in enumerate(files, start=1):
+        plt.subplot(len(files), 1, i)
+        data = pd.read_csv(f)
+        raw = data["raw_data"].values
+        a, b, filt = auto_gain_detection_v2(raw)
+        print(i, a, b)
+        plt.plot(filt, '.')
     plt.show()
 
     print(auto_gain_detection(raw))
