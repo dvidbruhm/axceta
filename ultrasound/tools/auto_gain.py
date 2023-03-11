@@ -34,7 +34,7 @@ def find_next_minimum(data, start_index):
     return current_min_index, current_min_value
 
 
-def find_next_minimum_over_threshold(data, start_index, threshold, max_index):
+def find_next_minimum_below_threshold(data, start_index, threshold, max_index):
     """Finds the next minimum in a dataset that is below a certain threshold
 
     Parameters
@@ -106,7 +106,7 @@ def detect_main_bang_end(data, pulse_count, max_bang_len=3000) -> int:
         (5, 1100),
         (10, 1300),
         (20, 1500),
-        (31, 700)
+        (31, 1700)
     ]
 
     # Find closest pulse count from dict
@@ -124,13 +124,13 @@ def detect_main_bang_end(data, pulse_count, max_bang_len=3000) -> int:
     # to find the true end of the bang
     max_value_in_bang = max(data[:max_bang_len])
     first_min_threshold = 0.7  # minima has to be less than this threshold to be considered as bang end
-    first_min_index = find_next_minimum_over_threshold(data, bang_index, first_min_threshold * max_value_in_bang, max_bang_len)
+    first_min_index = find_next_minimum_below_threshold(data, bang_index, first_min_threshold * max_value_in_bang, max_bang_len)
 
     # If the bang end is further than the max bang len, return the max bang len
     return min(first_min_index, max_bang_len)
 
 
-def auto_gain_detection(data, bang_end, signal_range=(0, 255), max_area_under_curve=2500, min_signal_height=0.5):
+def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255), max_area_under_curve=2500, min_signal_height=0.5):
     """Analyses a raw ultrasound signal to determine if there need to be more or less gain applied
 
     Parameters
