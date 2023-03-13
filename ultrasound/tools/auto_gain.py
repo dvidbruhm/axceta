@@ -181,8 +181,20 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
 
 if __name__ == "__main__":
     import numpy as np
-    #signal = np.genfromtxt('data/test/auc_tests/test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
-    signal = np.zeros((31000))
+    import pandas as pd
+    import json
+    import glob
+    import os
+
+    all_files = glob.glob("data/downsample_tests/*.csv")
+    df_from_each_file = (pd.read_csv(f, converters={"ultrasound": json.loads}) for f in all_files)
+    data = pd.concat(df_from_each_file, ignore_index=True)
+    DOWNSAMPLE_FACTORS = [1, 5, 10, 20, 50, 100, 150, 200]
+    print(data.columns)
+    print(len(data))
+
+    exit()
+    signal = np.genfromtxt('data/test/auc_tests/test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
     bang_end = detect_main_bang_end(signal, 20)
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
 
