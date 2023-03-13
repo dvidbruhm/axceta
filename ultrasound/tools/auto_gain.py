@@ -80,7 +80,7 @@ def find_next_minimum_below_threshold(data, start_index, threshold, max_index):
     return min_index
 
 
-def detect_main_bang_end(data, pulse_count, max_bang_len=3000) -> int:
+def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=6000) -> int:
     """Automatically detect the end of the main bang in a raw ultrasound reading
 
     Parameters
@@ -88,11 +88,7 @@ def detect_main_bang_end(data, pulse_count, max_bang_len=3000) -> int:
     data : list or numpy.ndarray
         raw data of the ultrasound
     max_mainbang_index : int, optional
-        max possible length of the main bang, by default 3000
-    min_plateau_len : int, optional
-        minimum length for which to consider a plateau in the main bang, by default 500
-    min_raw_data_len : int, optional
-        minimum possible length of the raw ultrasound data to verify if the data is valid, by default 10000
+        max possible length of the main bang, by default 6000
 
     Returns
     -------
@@ -100,13 +96,16 @@ def detect_main_bang_end(data, pulse_count, max_bang_len=3000) -> int:
         index of the end of the main bang
     """
 
+    conversion_factor = sample_rate / 1e6
+    max_bang_len = conversion_factor * max_bang_len
+
     # Value pairs of experimental values to convert from PulseCount -> approx. of bang end
     # Tuple(PulseCount, Approximation of bang end)
     pulse_count_to_index = [
-        (5, 1100),
-        (10, 1300),
-        (20, 1500),
-        (31, 1700)
+        (5, 2200 * conversion_factor),
+        (10, 2600 * conversion_factor),
+        (20, 3000 * conversion_factor),
+        (31, 3400 * conversion_factor)
     ]
 
     # Find closest pulse count from dict
@@ -130,7 +129,7 @@ def detect_main_bang_end(data, pulse_count, max_bang_len=3000) -> int:
     return min(first_min_index, max_bang_len)
 
 
-def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255), max_area_under_curve=2500, min_signal_height=0.5):
+def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255), max_area_under_curve=5000, min_signal_height=0.5):
     """Analyses a raw ultrasound signal to determine if there need to be more or less gain applied
 
     Parameters
@@ -149,11 +148,17 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
         0 -> Gain is OK
         -1 -> Gain needs to be a lower
     """
+    conversion_factor = sample_rate / 1e6
+    bang_end = conversion_factor * bang_end
+    max_area_under_curve = conversion_factor * max_area_under_curve
+    print(conversion_factor)
+    exit()
+
     max_value = max(data[bang_end:])
     mean_value = sum(data[bang_end:]) / len(data[bang_end:])
 
     # Remove small noise lower than the mean
-    filt_data = data
+    filt_data = data.copy()
     filt_data[filt_data < mean_value] = 0
 
     # Use the normalized signal for the area under curve
@@ -176,8 +181,8 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
 
 if __name__ == "__main__":
     import numpy as np
-    signal = np.genfromtxt('data/test/auc_tests/test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
-
+    #signal = np.genfromtxt('data/test/auc_tests/test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
+    signal = np.zeros((31000))
     bang_end = detect_main_bang_end(signal, 20)
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
 
