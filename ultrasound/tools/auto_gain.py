@@ -16,7 +16,6 @@ def find_next_minimum(data, start_index):
     """
     current_min_value = data[start_index]
     current_min_index = start_index
-    end_of_min_plateau = 0
 
     # Iterate on the signal until the signal stops decreasing
     for i in range(start_index, len(data)):
@@ -25,11 +24,8 @@ def find_next_minimum(data, start_index):
             current_min_value = val
             current_min_index = i
         elif val > current_min_value:
-            end_of_min_plateau = i
             break
 
-    # Find the "middle point" of the minimum plateau
-    # current_min_index = (end_of_min_plateau + current_min_index) // 2
     return current_min_index, current_min_value
 
 
@@ -65,9 +61,9 @@ def find_next_minimum_below_threshold(data, start_index, threshold, max_index):
             min_index, min_value = find_next_minimum(data, current_index)
             current_index = min_index
         else:
-            # if data[current_index] < 10:
-            #    min_index = current_index
-            #    valid = True
+            if data[current_index] < 10:
+                min_index = current_index
+                valid = True
             current_index += 1
             continue
 
@@ -158,12 +154,10 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
     mean_value = sum(data[bang_end:]) / len(data[bang_end:])
 
     # Remove small noise lower than the mean
-    filt_data = data.copy()
-    filt_data[filt_data < mean_value] = 0
+    data[data < mean_value] = 0
 
-    # Use the normalized signal for the area under curve
-    norm_data = filt_data / max_value
-    area_under_curve = sum(norm_data[bang_end:])
+    # Compute the area under the curve
+    area_under_curve = sum(data[bang_end:]) / max_value
 
     # The max of the signal is too low, need more signal
     if max_value < signal_range[1] * min_signal_height:
@@ -181,16 +175,10 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
 
 if __name__ == "__main__":
     import numpy as np
-    import matplotlib.pyplot as plt
 
-    signal = np.genfromtxt('data/test/auc_tests/test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
+    signal = np.genfromtxt('test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
     bang_end = detect_main_bang_end(signal, 20)
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
-
-    plt.plot(signal)
-    plt.axvline(bang_end)
-    plt.axvline(1778, color="red")
-    plt.show()
 
     print(f"End of main bang -> {bang_end:5d}")
     print(f"Auto gain value  -> {auto_gain:5d}")
