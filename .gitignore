@@ -11,3 +11,4 @@
 ultrasound/data
 silo-noise-reduction/data
 pi/
+**/**.bak
