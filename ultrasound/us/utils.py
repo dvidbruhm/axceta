@@ -15,5 +15,11 @@ def temp_to_sound_speed(temp_celsius: float) -> float:
 
 
 def tof_to_dist(tof, sound_speed):
-    dist = sound_speed * tof * 10e-7 / 2
+    dist = sound_speed * tof * 1e-6 / 2
+    return dist
+
+
+def tof_to_dist2(tof, temp_celsius):
+    sound_speed = temp_to_sound_speed(temp_celsius)
+    dist = tof_to_dist(tof, sound_speed)
     return dist

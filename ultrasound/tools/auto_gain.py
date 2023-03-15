@@ -1,5 +1,4 @@
 
-
 def find_next_minimum(data, start_index):
     """Find the next local minimum in a raw ultrasound signal
 
@@ -30,7 +29,7 @@ def find_next_minimum(data, start_index):
             break
 
     # Find the "middle point" of the minimum plateau
-    current_min_index = (end_of_min_plateau + current_min_index) // 2
+    # current_min_index = (end_of_min_plateau + current_min_index) // 2
     return current_min_index, current_min_value
 
 
@@ -66,6 +65,9 @@ def find_next_minimum_below_threshold(data, start_index, threshold, max_index):
             min_index, min_value = find_next_minimum(data, current_index)
             current_index = min_index
         else:
+            # if data[current_index] < 10:
+            #    min_index = current_index
+            #    valid = True
             current_index += 1
             continue
 
@@ -80,7 +82,7 @@ def find_next_minimum_below_threshold(data, start_index, threshold, max_index):
     return min_index
 
 
-def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=6000) -> int:
+def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=8000) -> int:
     """Automatically detect the end of the main bang in a raw ultrasound reading
 
     Parameters
@@ -97,15 +99,15 @@ def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=600
     """
 
     conversion_factor = sample_rate / 1e6
-    max_bang_len = conversion_factor * max_bang_len
+    max_bang_len = int(conversion_factor * max_bang_len)
 
     # Value pairs of experimental values to convert from PulseCount -> approx. of bang end
     # Tuple(PulseCount, Approximation of bang end)
     pulse_count_to_index = [
-        (5, 2200 * conversion_factor),
-        (10, 2600 * conversion_factor),
-        (20, 3000 * conversion_factor),
-        (31, 3400 * conversion_factor)
+        (5, int(2200 * conversion_factor)),
+        (10, int(2600 * conversion_factor)),
+        (20, int(3000 * conversion_factor)),
+        (31, int(4000 * conversion_factor))
     ]
 
     # Find closest pulse count from dict
@@ -115,6 +117,7 @@ def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=600
         diff = abs(pulse_count - pc)
         if diff < min_difference:
             closest_pulse_count = pc
+            min_difference = diff
 
     # Approximation of bang index from pulse count
     bang_index = [pc[1] for pc in pulse_count_to_index if pc[0] == closest_pulse_count][0]
@@ -150,8 +153,6 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
     """
     conversion_factor = sample_rate / 1e6
     max_area_under_curve = conversion_factor * max_area_under_curve
-    print(conversion_factor)
-    exit()
 
     max_value = max(data[bang_end:])
     mean_value = sum(data[bang_end:]) / len(data[bang_end:])
@@ -180,31 +181,12 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
 
 if __name__ == "__main__":
     import numpy as np
-    import pandas as pd
-    import json
-    import glob
+    import matplotlib.pyplot as plt
 
-    all_files = list(glob.glob("data/downsample_tests/*.csv"))[0]
-    df_from_each_file = (pd.read_csv(f, converters={"ultrasound": json.loads}) for f in all_files)
-    data = pd.concat(df_from_each_file, ignore_index=True)
-    DOWNSAMPLE_FACTORS = [1, 5, 10, 20, 50, 100, 150, 200]
-    for i in range(len(data)):
-        for down_fac in DOWNSAMPLE_FACTORS:
-            sample_rate = 500000 / down_fac
-            pulse_count = data.loc[i, "pulseCount"]
-            signal = np.array(data.loc[i, "ultrasound"])[::down_fac]
-
-            bang_end = detect_main_bang_end(signal, pulse_count, sample_rate)
-            auto_gain = auto_gain_detection(signal, bang_end, sample_rate)
-
-            exit()
-
-    exit()
     signal = np.genfromtxt('data/test/auc_tests/test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
     bang_end = detect_main_bang_end(signal, 20)
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
 
-    import matplotlib.pyplot as plt
     plt.plot(signal)
     plt.axvline(bang_end)
     plt.axvline(1778, color="red")

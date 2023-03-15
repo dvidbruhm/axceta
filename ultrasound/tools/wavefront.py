@@ -139,7 +139,7 @@ def detect_main_bang_end(data, pulse_count, max_mainbang_index=3000, min_plateau
     """
 
 
-def wavefront(data, temperature, threshold, window_in_meters, pulse_count, freq=500000, max_distance=9):
+def wavefront(data, temperature, threshold, window_in_meters, pulse_count, bang_end, sample_rate=500000, max_distance=9):
     """Finds the wavefront index in a raw ultrasound data
 
     Parameters
@@ -166,31 +166,23 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, freq=
         return max(range(len(x)), key=lambda i: x[i])
 
     # Error handling
-    if math.isnan(temperature) or len(data) < 10000:
+    if math.isnan(temperature):
         return -1
 
-    # Index at which to cut the main bang
-    bang_index = detect_main_bang_end(data, pulse_count)
-
-    # Check if wave if too wierd/strong
-    # print(np.mean(data[bang_index:]))
-    # if np.mean(data[bang_index:]) > 40:
-    #    return -1000
-
     # Compute the threshold and the speed of sound based on the temperature
-    threshold = threshold * max(data[bang_index:])
+    threshold = threshold * max(data[bang_end:])
     sound_speed = 20.02 * math.sqrt(temperature + 273.15)
 
     # Compute the window to check for the threshold around the max index,
     # which depends on the frequency of the signal
-    window_in_samples = int(window_in_meters / sound_speed * freq) * 2
-    max_distance_in_samples = int(max_distance / sound_speed * freq) * 2
+    window_in_samples = int(window_in_meters / sound_speed * sample_rate) * 2
+    max_distance_in_samples = int(max_distance / sound_speed * sample_rate) * 2
 
     # Find index of max value
-    max_index = argmax(data[bang_index:max_distance_in_samples]) + bang_index
+    max_index = argmax(data[bang_end:max_distance_in_samples]) + bang_end
 
     # Start and end index of the window in which to check for the threshold
-    start = max(bang_index, int(max_index - window_in_samples))
+    start = max(bang_end, int(max_index - window_in_samples))
     end = int(max_index) + 1
 
     # Find the index at which the data is at the threshold inside the window
@@ -200,4 +192,15 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, freq=
             wf_index = i
             break
 
-    return wf_index
+    # Interpolate
+    if data[wf_index - 1] < threshold < data[wf_index]:
+        diff = data[wf_index] - data[wf_index - 1]
+        threshold_diff = threshold - data[wf_index - 1]
+        if diff > 0:
+            wf_index_interpolated = wf_index + (threshold_diff / diff) - 1
+        else:
+            wf_index_interpolated = wf_index
+    else:
+        wf_index_interpolated = wf_index
+
+    return wf_index_interpolated
