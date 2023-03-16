@@ -7,13 +7,11 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 import us.utils as utils
-import tools.wavefront as wf
 import matplotlib.pyplot as plt
-import glob
 import json
 import pandas as pd
 import numpy as np
-import tools.auto_gain as ag
+import tools.ultrasound_algos as ua
 
 # Define custom progres
 progress_bar = Progress(
@@ -95,8 +93,8 @@ def filter_data(data):
             raw_data = data.loc[i, "ultrasound"]
             raw_data = np.array(raw_data)
             pulse_count = data.loc[i, "pulseCount"]
-            bang_end = ag.detect_main_bang_end(raw_data, pulse_count, 500000)
-            auto_gain = ag.auto_gain_detection(raw_data, bang_end)
+            bang_end = ua.detect_main_bang_end(raw_data, pulse_count, 500000)
+            auto_gain = ua.auto_gain_detection(raw_data, bang_end)
             if auto_gain != 0:
                 to_remove.append(i)
     data = data.drop(to_remove).reset_index()
@@ -123,9 +121,9 @@ def run_downsample_tests(data):
                 temperature = data.loc[i, "temperature"]
                 signal = np.array(data.loc[i, "ultrasound"])[::down_fac]
 
-                bang_end = ag.detect_main_bang_end(signal, pulse_count, sample_rate)
-                auto_gain = ag.auto_gain_detection(signal, bang_end, sample_rate)
-                wavefront = wf.wavefront(signal, temperature, 0.5, 0.8, pulse_count, bang_end, sample_rate=sample_rate)
+                bang_end = ua.detect_main_bang_end(signal, pulse_count, sample_rate)
+                auto_gain = ua.auto_gain_detection(signal, bang_end, sample_rate)
+                wavefront = ua.wavefront(signal, temperature, 0.5, 0.8, pulse_count, sample_rate)
 
                 wavefront_meters = utils.tof_to_dist2(wavefront * (1000000 / sample_rate), temperature)
                 bang_end_meters = utils.tof_to_dist2(bang_end * (1000000 / sample_rate), temperature)
@@ -142,7 +140,7 @@ def run_downsample_tests(data):
                 results["wavefront"].append(wavefront)
                 results["wavefront_meters"].append(wavefront_meters)
                 if i in [1433, 775, 777, 444, 783]:
-                    #print(i, sample_rate, pulse_count, bang_end, wavefront)
+                    # print(i, sample_rate, pulse_count, bang_end, wavefront)
                     plt.subplot(len(DOWNSAMPLE_FACTORS), 1, 1 + j)
                     plt.plot(signal, '.')
                     plt.axvline(bang_end, color="red")
@@ -157,11 +155,11 @@ def run_downsample_tests(data):
 
 if __name__ == "__main__":
 
-    #all_files = list(glob.glob("data/downsample_tests/export*.csv"))
-    #df_from_each_file = (pd.read_csv(f, converters={"ultrasound": json.loads}) for f in all_files)
-    #data = pd.concat(df_from_each_file, ignore_index=True)
+    # all_files = list(glob.glob("data/downsample_tests/export*.csv"))
+    # df_from_each_file = (pd.read_csv(f, converters={"ultrasound": json.loads}) for f in all_files)
+    # data = pd.concat(df_from_each_file, ignore_index=True)
 
-    #data = filter_data(data)
+    # data = filter_data(data)
     # data.to_csv("data/downsample_tests/data-filtered.csv")
     # plt.plot(data.loc[829, "ultrasound"])
     # plt.show()

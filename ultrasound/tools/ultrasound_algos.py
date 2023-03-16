@@ -1,3 +1,5 @@
+import math
+
 
 def find_next_minimum(data, start_index):
     """Find the next local minimum in a raw ultrasound signal
@@ -173,12 +175,92 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
     return 0
 
 
+def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate=500000, max_distance=9):
+    """Finds the wavefront index in a raw ultrasound data
+
+    Parameters
+    ----------
+    data : List[int]
+        Raw ultrasound data
+    temperature : float
+        Temperature of the device in Celsius
+    threshold : float ([0 - 1])
+        Threshold as a fraction of the max value to find the wavefront, between 0 and 1
+    window_in_meters : float
+        Window around the max value in which to find the wavefront, in meters
+    pulse_count : int
+        Pulse count parameter of the PGA
+    sample_rate : int, optional
+        Sample rate of the signal in Hz, by default 500000
+    max_distance : float, optional
+        Maximum distance (meters) for which to look for a signal, by default 9
+
+    Returns
+    -------
+    int
+        Index of the wavefront, returns -1 if no wavefront index is found
+    """
+    def argmax(x):
+        return max(range(len(x)), key=lambda i: x[i])
+
+    # Error handling
+    if math.isnan(temperature):
+        return -1
+
+    # Find end of bang
+    bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
+
+    # Compute the threshold and the speed of sound based on the temperature
+    threshold = threshold * max(data[bang_end:])
+    sound_speed = 20.02 * math.sqrt(temperature + 273.15)
+
+    # Compute the window to check for the threshold around the max index,
+    # which depends on the frequency of the signal
+    window_in_samples = int(window_in_meters / sound_speed * sample_rate) * 2
+    max_distance_in_samples = int(max_distance / sound_speed * sample_rate) * 2
+
+    # Find index of max value
+    max_index = argmax(data[bang_end:max_distance_in_samples]) + bang_end
+
+    # Start and end index of the window in which to check for the threshold
+    start = max(bang_end, int(max_index - window_in_samples))
+    end = int(max_index) + 1
+
+    # Find the index at which the data is at the threshold inside the window
+    wf_index = -1
+    for i, d in enumerate(data[start:end], start=start):
+        if d > threshold:
+            wf_index = i
+            break
+
+    # Interpolate
+    if data[wf_index - 1] < threshold < data[wf_index]:
+        diff = data[wf_index] - data[wf_index - 1]
+        threshold_diff = threshold - data[wf_index - 1]
+        if diff > 0:
+            wf_index_interpolated = wf_index + (threshold_diff / diff) - 1
+        else:
+            wf_index_interpolated = wf_index
+    else:
+        wf_index_interpolated = wf_index
+
+    return wf_index_interpolated
+
+
 if __name__ == "__main__":
     import numpy as np
 
-    signal = np.genfromtxt('test_input_pulsecount_20.csv', delimiter=',', skip_header=1)
+    signal = np.genfromtxt('data/downsample_tests/test_input_pulsecount_31.csv', delimiter=',', skip_header=1)
     bang_end = detect_main_bang_end(signal, 20)
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
+    wf = wavefront(signal, 0, 0.5, 1.0, 31, 500000)
+
+    import matplotlib.pyplot as plt
+    plt.plot(signal)
+    plt.axvline(bang_end, color="red")
+    plt.axvline(wf, color="green")
+    plt.show()
 
     print(f"End of main bang -> {bang_end:5d}")
+    print(f"Wavefront index -> {wf:5d}")
     print(f"Auto gain value  -> {auto_gain:5d}")
