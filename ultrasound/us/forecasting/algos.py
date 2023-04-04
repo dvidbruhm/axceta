@@ -7,17 +7,24 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def read_load_cell_data(data_path: Path, silo_name: str, version: str = "v1") -> pd.DataFrame:
-    assert version in ["v1", "v2"]
+def read_load_cell_data(data_path: Path, silo_name: str, version: str = "v1", col_name: str = "LoadcellWeight_t") -> pd.DataFrame:
+    assert version in ["v1", "v2", "v3"]
     if version == "v1":
-        df = pd.DataFrame(pd.read_csv(data_path, usecols=["AcquisitionDate", silo_name], converters={silo_name: lambda x: float(x[:-2]) if len(x) > 0 else np.NaN}))
+        df = pd.DataFrame(pd.read_csv(data_path, usecols=["AcquisitionDate", silo_name], converters={
+                          silo_name: lambda x: float(x[:-2]) if len(x) > 0 else np.NaN}))
         time_col_name = "AcquisitionDate"
-    else:
+    elif version == "v2":
         df = pd.DataFrame(pd.read_csv(data_path))
         df = df.loc[df["LocationName"] == silo_name]
         time_col_name = "AcquisitionTime"
         df[silo_name] = df["FeedRemaining_kg"]
         df = df.drop(["FeedRemaining_kg", "LocationName"], axis=1)
+    elif version == "v3":
+        df = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime})
+        df = df.loc[df["LocationName"] == silo_name]
+        time_col_name = "AcquisitionTime"
+        df[silo_name] = df[col_name]
+        df = df.drop([col_name, "LocationName"], axis=1)
     df.set_index(pd.DatetimeIndex(df[time_col_name]), inplace=True)
     df = pd.DataFrame(df.drop([time_col_name], axis=1))
     df = df.resample("1H").mean()
@@ -47,6 +54,7 @@ def get_currently_active(data1: pd.DataFrame, data2: pd.DataFrame, silo_name1: s
         return data1
     return data2
 
+
 def find_consecutive(data, min_len: int = 10):
     data = data.copy()                   # avoid mutating the original list
     counting = []                      # keep track of True indexes, to count them later
@@ -54,7 +62,7 @@ def find_consecutive(data, min_len: int = 10):
         is_last = i + 1 >= len(data)    # True if this is the last index in the array
         if data[i] == True:
             counting.append(i)         # add value to list if True
-        if is_last or data[i] == False: # when we are at the last entry, or find a False
+        if is_last or data[i] == False:  # when we are at the last entry, or find a False
             if len(counting) < min_len:      # check the length of our True indexes, and if less than 6
                 for j in counting:
                     data[j] = False     # make each False
@@ -73,8 +81,8 @@ def find_not_both_flat(data1: pd.DataFrame, data2: pd.DataFrame, min_len: int = 
     if debug:
         for i, data in enumerate([data2, data1]):
             plt.subplot(2, 1, i + 1)
-            #plt.plot(data.iloc[:, 0])
-            #plt.plot(data[np.array(both_flat) == True].iloc[:, 0], '.')
+            # plt.plot(data.iloc[:, 0])
+            # plt.plot(data[np.array(both_flat) == True].iloc[:, 0], '.')
             plt.plot(data[np.array(not_both_flat) == True].iloc[:, 0], '.')
         plt.show()
         print(both_flat)
@@ -84,10 +92,12 @@ def find_not_both_flat(data1: pd.DataFrame, data2: pd.DataFrame, min_len: int = 
 
     return not_both_flat
 
+
 Cycle = NamedTuple("Cycle", [("start", int), ("end", int)])
 
+
 def find_big_cycles(not_both_flat, start_at: str = "start", debug: bool = False):
-    assert(start_at.lower() in ["start", "end"])
+    assert (start_at.lower() in ["start", "end"])
 
     data = np.argwhere(np.diff(not_both_flat)).squeeze()
     start_index = 0 if start_at == "start" else 1
@@ -95,9 +105,9 @@ def find_big_cycles(not_both_flat, start_at: str = "start", debug: bool = False)
     if start_at == "end":
         cycles.append(Cycle(start=0, end=data[0]))
     for i in range(start_index, len(data) - 1, 2):
-        cycles.append(Cycle(start=data[i], end=data[i+1]))
+        cycles.append(Cycle(start=data[i], end=data[i + 1]))
     if (start_at == "end" and len(data) % 2 == 0) or (start_at == "start" and len(data) % 2 == 1):
-        cycles.append(Cycle(start=data[-1], end=len(not_both_flat)))
+        cycles.append(Cycle(start=data[-1], end=len(not_both_flat) - 1))
 
     if debug:
         print(list(range(start_index, len(data) - 1, 2)))
@@ -117,7 +127,7 @@ def find_flat_signals(data: np.ndarray, min_len: int = 10, debug: bool = False) 
         if flat:
             count += 1
             if count > min_len:
-                if (i + 1) > len(is_flat) - 1 or not is_flat[i + 1]: 
+                if (i + 1) > len(is_flat) - 1 or not is_flat[i + 1]:
                     flat_segments.append((i - count, i))
         else:
             count = 0
@@ -145,7 +155,7 @@ def find_silo_fills(data: np.ndarray) -> List[int]:
     fixed_fill_indices = []
     for i in range(len(fill_indices) - 1):
         current_index = fill_indices[i]
-        next_index = fill_indices[i+1]
+        next_index = fill_indices[i + 1]
         if next_index - current_index != 1:
             fixed_fill_indices.append(current_index)
     fixed_fill_indices.append(fill_indices[-1])
@@ -159,6 +169,7 @@ def find_silo_fills(data: np.ndarray) -> List[int]:
     plt.show()
     """
     return fixed_fill_indices
+
 
 FillInfo = NamedTuple(
     "FillInfo",
@@ -204,7 +215,7 @@ def get_fill_rate_info(fill_indices: List[int], data: pd.DataFrame, silo_name: s
     fill_rate_info = []
     for i in range(1, len(fill_indices)):
         current_index = fill_indices[i]
-        prev_index = fill_indices[i-1]
+        prev_index = fill_indices[i - 1]
         starti, endi, gradient = find_start_end_of_fill(prev_index, current_index, np_data)
         nb_hours = max(endi - starti, 1)
         info = FillInfo(
@@ -250,7 +261,7 @@ def simple_regression_pred(data: np.ndarray, nb_points: int = 24, threshold: flo
     from sklearn.metrics import mean_squared_error, r2_score
     points = data[-nb_points:]
     pred, regr = regression(points)
-    X_test = np.array(range(1, nb_points+1)).reshape(-1, 1)
+    X_test = np.array(range(1, nb_points + 1)).reshape(-1, 1)
     current_fill = 10000
     empty_date = nb_points
     pred = list(regr.predict(X_test))

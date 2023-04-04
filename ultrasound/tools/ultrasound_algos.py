@@ -255,12 +255,6 @@ if __name__ == "__main__":
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
     wf = wavefront(signal, 0, 0.5, 1.0, 31, 500000)
 
-    import matplotlib.pyplot as plt
-    plt.plot(signal)
-    plt.axvline(bang_end, color="red")
-    plt.axvline(wf, color="green")
-    plt.show()
-
     print(f"End of main bang -> {bang_end:5d}")
     print(f"Wavefront index -> {wf:5d}")
     print(f"Auto gain value  -> {auto_gain:5d}")

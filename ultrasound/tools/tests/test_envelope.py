@@ -3,9 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.fft import fft, fftfreq
 import tools.raw_processing as rp
-from scipy.signal import chirp, hilbert
+from scipy.signal import hilbert
 from scipy import signal
-from scipy.fft import fft, fftfreq
 
 
 if __name__ == "__main__":
@@ -55,7 +54,7 @@ if __name__ == "__main__":
 
     plt.subplot(5, 1, 4)
     plt.plot(abs(window_sig))
-    #plt.plot(v2_lowpass_sig, label="v2 catalys filter")
+    # plt.plot(v2_lowpass_sig, label="v2 catalys filter")
     plt.plot(smoothed_v2_sig, "--", label="smoothed v2")
     plt.legend(loc="best")
 
@@ -69,8 +68,8 @@ if __name__ == "__main__":
 
     N = len(sig)
     T = freq2
-    yf = np.fft.fft(abs(sig))[: N//2]
-    xf = np.fft.fftfreq(N)[: N//2]
+    yf = np.fft.fft(abs(sig))[: N // 2]
+    xf = np.fft.fftfreq(N)[: N // 2]
 
     threshold = 0.5 * max(abs(yf))
     mask = abs(yf) > threshold

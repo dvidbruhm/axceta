@@ -1,0 +1,25 @@
+x 2022-08-19 Automatically flag bad raw data reading vs good reading to check at which distance readings become bad
+x 2022-08-19 Train longer model and with all parquets files
+x 2022-11-17 Faire script qui calcul l'erreur par rapport au loadcell, moyenne et par distance, pour pouvoir facilement avoir une métrique d'erreur pour voir si nos résultats s'améliore en changeant de config/méthode
+x 2022-11-18 Add column with nb of occurence samples
+x 2022-11-18 Check errors when using a minimum peak strenght of raw data
+x 2022-12-05 Compare the two wf algos: pga wf and wf and see the difference
+x 2022-12-05 Faire script qui calcul l'erreur par rapport au loadcell, moyenne et par distance, pour pouvoir facilement avoir une métrique d'erreur pour voir si nos résultats s'améliore en changeant de config/méthode
+x 2022-12-05 Redo for everything config to find if some are better at the beginning
+x 2023-01-31 Algo to detect precisely end of main bang to that we can detect better at vry short distances
+x 2023-01-31 Accuracy vs Temperature
+x 2023-01-31 Check errors with the variable window size method
+x 2023-01-31 check when loadcell is before peak (always same depth, depends on temperature, etc..)
+x 2023-01-31 Compare error of all sensor configs, but seperated by distance (eg. 1-3 meters, 3-5 meters, etc.) and find if log-1 is better in all distances or not
+x 2023-01-31 Verify/modify main bang detection algo with problematic raw data
+x 2023-01-31 Refaire l'inventaire des cas où ca marche bien, moins bien (distance, silo, temperature, etc..)
+x 2023-01-31 Verify metrics script on cloud with dataset from Francis
+x 2023-01-31 investiguer les oscillations de temperastuure
+x 2023-01-31 Add error in % also
+x 2023-01-31 Compare wf and CDM algos, verify if still true that wf is better than cdm at low distance (<2m)
+x 2023-01-31 verifier si il y a une correelation entre les raws pas de signal et un autre parametre que la distance
+x 2023-02-06 Verify metrics script on cloud with dataset from Francis
+x 2023-02-10 Verify/modify smoothing algo on cdpq-1 dataset
+x 2023-02-20 Verify/modify main bang detection algo with problematic raw data
+x 2023-02-22 Translate octave script to python from guillaume
+x 2023-02-22 Try to replicate the PGA raw processeing (bandpass, peak hold, low pass, etc.)
