@@ -175,7 +175,7 @@ def auto_gain_detection(data, bang_end, sample_rate=500000, signal_range=(0, 255
     return 0
 
 
-def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate=500000, max_distance=9):
+def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate=500000):
     """Finds the wavefront index in a raw ultrasound data
 
     Parameters
@@ -192,8 +192,6 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
         Pulse count parameter of the PGA
     sample_rate : int, optional
         Sample rate of the signal in Hz, by default 500000
-    max_distance : float, optional
-        Maximum distance (meters) for which to look for a signal, by default 9
 
     Returns
     -------
@@ -217,10 +215,9 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
     # Compute the window to check for the threshold around the max index,
     # which depends on the frequency of the signal
     window_in_samples = int(window_in_meters / sound_speed * sample_rate) * 2
-    max_distance_in_samples = int(max_distance / sound_speed * sample_rate) * 2
 
     # Find index of max value
-    max_index = argmax(data[bang_end:max_distance_in_samples]) + bang_end
+    max_index = argmax(data[bang_end:]) + bang_end
 
     # Start and end index of the window in which to check for the threshold
     start = max(bang_end, int(max_index - window_in_samples))
@@ -249,6 +246,41 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
 
 if __name__ == "__main__":
     import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import json
+
+    data = pd.read_csv("data/random/ultrasound_echoes.csv")
+    print(data.columns)
+    for i in range(len(data)):
+        print(data.loc[i, "PulseCount"])
+        raw_data = np.array(json.loads(data.loc[i, "Data"]))
+        bang_end = detect_main_bang_end(raw_data.copy(), data.loc[i, "PulseCount"], data.loc[i, "SamplingFrequency"])
+        auto_gain = auto_gain_detection(raw_data.copy(), bang_end, data.loc[i, "SamplingFrequency"])
+        print(auto_gain)
+        plt.subplot(2, 1, 1)
+        plt.plot(raw_data)
+        plt.axvline(data.loc[i, "MainBangEnd"], color="red")
+        plt.axvline(data.loc[i, "WavefrontIndex"], color="green")
+
+        raw_data_2 = np.array(json.loads(data.loc[i, "Data"]))[::2]
+        bang_end_2 = detect_main_bang_end(raw_data_2.copy(), data.loc[i, "PulseCount"], data.loc[i, "SamplingFrequency"] / 2)
+        auto_gain_2 = auto_gain_detection(raw_data_2.copy(), bang_end_2, data.loc[i, "SamplingFrequency"] / 2)
+
+        print(auto_gain_2)
+        plt.subplot(2, 1, 2)
+        plt.plot(raw_data_2)
+        plt.axvline(bang_end_2, color="red")
+        plt.show()
+
+    exit()
+    wf = wavefront(data["raw_data"].values, 0, 0.5, 1.5, 31, 500000)
+    print(wf)
+
+    plt.plot(data["raw_data"].values)
+    plt.axvline(wf)
+    plt.show()
+    exit()
 
     signal = np.genfromtxt('data/downsample_tests/test_input_pulsecount_31.csv', delimiter=',', skip_header=1)
     bang_end = detect_main_bang_end(signal, 20)

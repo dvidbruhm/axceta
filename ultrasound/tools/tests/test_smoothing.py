@@ -97,12 +97,12 @@ def savgol_filter(data, window_size, ):
 
 
 if __name__ == "__main__":
-    data_path = "data/test/1486B.csv"
+    data_path = "data/random/export.csv"
 
     data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime})
     data = data[data["latestAlgo_w_t"].notnull()]
-    #data["weightAlgo1_t"] = data.apply(lambda x: float(x["weightAlgo1_t"].split(" ")[0]), axis=1)
-    #data["smoothed"] = data.apply(lambda x: float(x["smoothed"].split(" ")[0]), axis=1)
+    # data["weightAlgo1_t"] = data.apply(lambda x: float(x["weightAlgo1_t"].split(" ")[0]), axis=1)
+    # data["smoothed"] = data.apply(lambda x: float(x["smoothed"].split(" ")[0]), axis=1)
 
     data = data.resample("1H", on="AcquisitionTime").mean(numeric_only=True)
     data["AcquisitionTime"] = data.index
@@ -112,11 +112,11 @@ if __name__ == "__main__":
 
     spike_filtered = generic_iir_filter(data["latestAlgo_w_t"].values, spike_filter, params={
         "maximum_change_perc": 5, "number_of_changes": 2, "count": 0})
-    #plt.plot(data["AcquisitionTime"], spike_filtered)
+    # plt.plot(data["AcquisitionTime"], spike_filtered)
 
     tau, R = 4, 3.5
     exp_filtered = generic_iir_filter(spike_filtered, exp_filter, params={"tau": tau, "timestep": 1})
-    #plt.plot(data["AcquisitionTime"], exp_filtered, label=f"exp, tau={tau}")
+    # plt.plot(data["AcquisitionTime"], exp_filtered, label=f"exp, tau={tau}")
     nonlin_exp_filtered = generic_iir_filter(spike_filtered, nonlin_exp_filter, params={"R": R})
     plt.plot(data["AcquisitionTime"], nonlin_exp_filtered, label=f"nonlin exp, R={R}")
     plt.legend(loc="best")
@@ -141,12 +141,12 @@ if __name__ == "__main__":
             reg_smooth[i] = rs.auto_regression_smoothing(data["AcquisitionTime"].values[i - 48: i + 1], spike_filtered[i - 48: i + 1])
         else:
             reg_smooth[i] = spike_filtered[i]
-        #reg_smooth[i] = generic_iir_filter(reg_smooth[max(0, i - 48):i], exp_filter, params={"tau": 2, "timestep": 1})[-1]
-        #delta = float(spike_filtered[i] - spike_filtered[i-1])
-        #reg_smooth[i], params = exp_filter(reg_smooth[i-1], spike_filtered[i], {"tau": 2, "timestep": 1, "delta_value": delta})
+        # reg_smooth[i] = generic_iir_filter(reg_smooth[max(0, i - 48):i], exp_filter, params={"tau": 2, "timestep": 1})[-1]
+        # delta = float(spike_filtered[i] - spike_filtered[i-1])
+        # reg_smooth[i], params = exp_filter(reg_smooth[i-1], spike_filtered[i], {"tau": 2, "timestep": 1, "delta_value": delta})
     filt = rs.generic_iir_filter(reg_smooth, rs.exp_filter, params={"tau": 2, "timestep": 1, "min_fill_value": 3})
     plt.plot(data["latestAlgo_w_t"].values)
-    #plt.plot(data["AcquisitionTime"], reg_smooth, label="regression")
+    # plt.plot(data["AcquisitionTime"], reg_smooth, label="regression")
     plt.plot(filt, label="cheated")
 
     final_smoothed = np.zeros_like(data["latestAlgo_w_t"].values)
@@ -155,7 +155,7 @@ if __name__ == "__main__":
         final_smoothed[i] = rs.smoothing(
             data["AcquisitionTime"].values[max(0, i - 48): i],
             data["latestAlgo_w_t"].values[max(0, i - 48): i],
-            final_smoothed[i - 1])
+            final_smoothed[i - 1], 25)
     plt.plot(final_smoothed, label="final")
     plt.legend(loc="best")
     """

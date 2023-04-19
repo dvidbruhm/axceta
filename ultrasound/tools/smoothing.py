@@ -72,7 +72,7 @@ def auto_regression_smoothing(time, values, min_r2_score=0.9, max_regression_len
     values = np.array(values)
     time = np.array(time, dtype=np.datetime64)
 
-    time = time.astype(np.float)
+    time = time.astype(np.float64)
     time = (time - np.min(time)) / (np.max(time) - np.min(time))
 
     # Sort arrays according to time

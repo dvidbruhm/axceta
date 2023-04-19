@@ -1,0 +1,5 @@
+[2023-04-19] - (!!) Is the main bang end in avinor dashboard good? Does it need to be x2?
+[2023-04-19] -  (!) Restart the project to predict the next silo fill on isoporc data
+[2023-04-19] - (!!) Check how the algo handles when the max signal is after the max distance
+[2023-04-19] -      Work on empty silo detection on Isoporc
+[2023-04-19] -  (!) Check why there are two raw data that gives different gain_quality results with subsample by 2

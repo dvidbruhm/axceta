@@ -1,5 +1,4 @@
-(!!) Is the main bang end in avinor dashboard good? Does it need to be x2?
-(!!) Check how the algo handles when the max signal is after the max distance
-     Work on empty silo detection on Isoporc
- (!) Restart the project to predict the next silo fill on isoporc data
- (!) Check why there are two raw data that gives different gain_quality results with subsample by 2
+     Check data of new sensors and why can't we find a 0 quality signal every time
+     Verify why pulse algo fails on certain data on agco (find solution for fail on main bang end)
+     Check agco data manually to check if there is a better way to process the raw data when the peak is larger (and when the wavefront is at the end of a large peak)
+     Improve next fill prediction algo to work on other type of silos (try package such as statsforecast), (add approach to treat silos in pairing like in avinor)

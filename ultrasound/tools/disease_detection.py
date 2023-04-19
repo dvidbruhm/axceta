@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     dfT = theoretical_consommation("data/disease_detection/chicken_consommation.csv")
 
-    silo_name = "Avinor-1485"
+    silo_name = "Avinor-1483"
     dfA = fore.read_load_cell_data(f"data/disease_detection/Data/{silo_name.split('-')[1]}.csv", f"{silo_name}A", "v3", "FeedRemaining_g")
     dfB = fore.read_load_cell_data(f"data/disease_detection/Data/{silo_name.split('-')[1]}.csv", f"{silo_name}B", "v3", "FeedRemaining_g")
     dfA[f"{silo_name}A"] /= 1000000
