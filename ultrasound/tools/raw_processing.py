@@ -8,7 +8,7 @@ def process_raw_signal(data, freq=500000):
 
     # Window
     window = signal.windows.tukey(len(data), 0.05)
-    #data = window * data
+    # data = window * data
 
     # Bandpass
     low, high = 20000, 30000
@@ -36,6 +36,22 @@ def process_raw_signal(data, freq=500000):
 if __name__ == "__main__":
     import pandas as pd
     import matplotlib.pyplot as plt
+    df = pd.read_csv("data/random/log-1-lc200-p20-data-2023-04-26 12 13 46.csv")
+    raw_data = df["raw_data"].values
+    plt.plot(raw_data)
+    cutoff_freq = 200
+    b, a = signal.butter(2, cutoff_freq / 250000, 'lowpass', analog=False)
+    lowpass = signal.filtfilt(b, a, raw_data)
+    plt.plot(lowpass)
+    plt.show()
+
+    N = len(raw_data)
+    yf = np.fft.fft(abs(raw_data))[: N // 2]
+    xf = np.fft.fftfreq(N)[: N // 2]
+    plt.plot(xf * 500000, abs(yf))
+    plt.show()
+    exit()
+
     df = pd.read_csv("data/test/2023_02_22_113006_V3.csv")
 
     processed = process_raw_signal(df["ultrasons_data"].values, 500000)

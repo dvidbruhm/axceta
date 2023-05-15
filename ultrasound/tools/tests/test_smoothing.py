@@ -97,9 +97,23 @@ def savgol_filter(data, window_size, ):
 
 
 if __name__ == "__main__":
-    data_path = "data/random/export.csv"
-
+    from regressio.models import cubic_spline, linear_regression, exp_moving_average, isotonic_regression, knn_kernel
+    data_path = "data/agco/v2/p2c-17.csv"
     data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime})
+
+    print(data.columns)
+    pga = rs.generic_iir_filter(data["PGA_weight"].values, rs.spike_filter, {
+                                "maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
+    cubic_splined = knn_kernel(n=10)
+    cubic_splined.fit(data["AcquisitionTime"].values.astype(np.float64), pga, confidence_interval=0.99, plot=True)
+    cubic_splined2 = knn_kernel(n=10)
+    cubic_splined2.fit(data["AcquisitionTime"].values.astype(np.float64), pga, confidence_interval=0.7, plot=True)
+
+    plt.plot(data["AcquisitionTime"], pga)
+    plt.show()
+
+    exit()
+
     data = data[data["latestAlgo_w_t"].notnull()]
     # data["weightAlgo1_t"] = data.apply(lambda x: float(x["weightAlgo1_t"].split(" ")[0]), axis=1)
     # data["smoothed"] = data.apply(lambda x: float(x["smoothed"].split(" ")[0]), axis=1)

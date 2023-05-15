@@ -1,4 +1,10 @@
 import math
+import numpy as np
+
+
+def argmax(x):
+    """Find the index of the max in a list of values"""
+    return max(range(len(x)), key=lambda i: x[i])
 
 
 def find_next_minimum(data, start_index):
@@ -80,6 +86,35 @@ def find_next_minimum_below_threshold(data, start_index, threshold, max_index):
     return min_index
 
 
+def is_signal_close_to_bang(data, main_bang_end_estimation, start_index, threshold):
+    """Check if the main peak of the signal is close to the main bang
+
+    Parameters
+    ----------
+    data : list[int]
+        Raw ultrasound signal
+    main_bang_end_estimation : int
+        Estimated end of the main bang
+    start_index : int
+        Start to check for the main peak at this index
+    threshold : float
+        Peak is considered the main peak if above this threshold
+
+    Returns
+    -------
+    bool
+        Is the main peak close to the bang bang?
+    """
+    data_start = data[main_bang_end_estimation:start_index]
+    data_end = data[start_index:]
+    start_peak_value = max(data_start)
+    end_peak_index, end_peak_value = argmax(data_end), max(data_end)
+
+    if end_peak_value > threshold and end_peak_value > start_peak_value:
+        return False
+    return True
+
+
 def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=8000) -> int:
     """Automatically detect the end of the main bang in a raw ultrasound reading
 
@@ -125,6 +160,21 @@ def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=800
     max_value_in_bang = max(data[:max_bang_len])
     first_min_threshold = 0.7  # minima has to be less than this threshold to be considered as bang end
     first_min_index = find_next_minimum_below_threshold(data, bang_index, first_min_threshold * max_value_in_bang, max_bang_len)
+
+    # Check if the signal is close to main bang or not
+    if first_min_index < max_bang_len:
+        threshold = max(data) * 0.4
+        is_signal_close = is_signal_close_to_bang(data, first_min_index, max_bang_len, threshold)
+        if not is_signal_close:
+            if data[max_bang_len] < threshold:
+                return max_bang_len
+            else:
+                val = data[max_bang_len]
+                i = max_bang_len
+                while val > threshold:
+                    val = data[i]
+                    i -= 1
+                return i
 
     # If the bang end is further than the max bang len, return the max bang len
     return min(first_min_index, max_bang_len)
@@ -198,8 +248,6 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
     int
         Index of the wavefront, returns -1 if no wavefront index is found
     """
-    def argmax(x):
-        return max(range(len(x)), key=lambda i: x[i])
 
     # Error handling
     if math.isnan(temperature):
@@ -244,11 +292,168 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
     return wf_index_interpolated
 
 
+def before_wavefront(data, temperature, threshold, window_in_meters, pulse_count, threshold_before, sample_rate=500000):
+    bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
+    wf = wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate)
+    threshold_before_abs = threshold_before * max(data[bang_end:])
+    i = int(wf)
+    current_val = data[i]
+    while current_val > threshold_before_abs:
+        current_val = data[i]
+        i -= 1
+    return i
+
+
+def center_of_mass(data, pulse_count, sample_rate=500000):
+    # Find end of bang
+    bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
+
+    # Remove noise floor
+    mean_value = sum(data[bang_end:]) / len(data[bang_end:])
+    mean_value = mean_value if mean_value > 15 else 15
+    data = data.copy()
+    data[bang_end:] = [0 if d < mean_value else d for d in data[bang_end:]]
+    data = [d**2 for d in data]
+    indices = list(range(0, len(data)))
+
+    # Compute center of mass
+    s = sum(data[bang_end:])
+    if s > 0:
+        center = sum(x * w for w, x in zip(data[bang_end:], indices[bang_end:])) / sum(data[bang_end:])
+    else:
+        return len(data)
+    return center
+
+
+silo_data_17 = {
+    "H1": 0.7,
+    "H2": 3.618,
+    "H3": 8.217,
+    "Diametre": 3.64,
+    "Angle (degré)": 30,
+    "Offset du device": 0.335,
+    "densité de moulé (kg/hl)": 75,
+}
+
+
+def dist_to_volume(dist: float, silo_name: str, silo_data: dict) -> np.ndarray:
+    # print(conversion_data.columns)
+    # silo_data = conversion_data.loc[conversion_data["LocationName"] == silo_name]
+
+    # print(silo_data)
+    # print(silo_name)
+    # print(conversion_data)
+    h1, h2, h3 = silo_data["H1"], silo_data["H2"], silo_data["H3"]
+    # print("H1, H2, H3 : ", h1, h2, h3)
+    diam, angle = silo_data["Diametre"], silo_data["Angle (degré)"]
+    offset = silo_data["Offset du device"]
+    # print("Diameter, angle, offset : ", diam, angle, offset)
+    max_d = h3 - h1 - offset
+    r1 = diam / 2
+    cone_height = h2 - h1
+    r2 = r1 - (cone_height * math.tan(math.radians(angle)))
+    if "CDPQA" in silo_name:
+        r2 = 0.4445
+    # print("R1, R2, Cone Height : ", r1, r2, cone_height)
+    vol_cone = (1 / 3) * math.pi * (r1**2 + r2**2 + r1 * r2) * cone_height
+    h_cyl = h3 - h2
+    vol_cyl = math.pi * r1**2 * h_cyl
+    # print("VolumeCone, HeightCylinder, VolumeCylinder : ", vol_cone, h_cyl, vol_cyl)
+    vol_tot = vol_cyl + vol_cone
+    dist_tot = dist + offset
+    new_r1 = (cone_height - (dist_tot - h_cyl)) * math.tan(math.radians(angle)) + r2 if dist_tot > h_cyl else 0
+    # print("Total Volume, Total distance, New R1 : ", vol_tot, dist_tot, new_r1)
+    density = silo_data["densité de moulé (kg/hl)"]
+    if dist_tot <= h_cyl:
+        vol_hecto = (math.pi * r1 * r1 * (h_cyl - dist_tot) + vol_cone) * 10
+    else:
+        vol_hecto = (1 / 3) * math.pi * (new_r1**2 + r2**2 + new_r1 * r2) * (h3 - h1 - dist_tot) * 10
+
+    perc_fill = vol_hecto / vol_tot * 10
+    # print("Volume Hecto, Percent : ", vol_hecto, perc_fill)
+
+    # print(vol_tot, dist_tot, new_r1)
+    # print(density, vol_hecto, perc_fill)
+
+    weight = vol_hecto * density / 1000
+    return weight
+
+
 if __name__ == "__main__":
-    import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
     import json
+    import us.utils as utils
+    from rich import print
+    from rich.progress import track
+    import tools.smoothing as rs
+
+    print("Loading data...")
+    data = pd.read_csv("data/agco/v2/p2c-17.csv", converters={"AcquisitionTime": pd.to_datetime})
+    print("Done.")
+    print(data.columns)
+    centers = []
+    centers_dist = []
+    centers_weight = []
+    for i in track(range(len(data)), ):
+        raw_data = json.loads(data.iloc[i]["rawdata"])
+        cdm = center_of_mass(raw_data, 31)
+        centers.append(cdm)
+        dist = utils.tof_to_dist2(cdm, data.iloc[i]["temperature"]) * 2000
+        centers_dist.append(dist)
+        centers_weight.append(dist_to_volume(dist / 1000, "allo", silo_data_17))
+        if i in []:
+            plt.plot(raw_data)
+            plt.axvline(cdm, color="green")
+            plt.axvline(data.iloc[i]["CDM_index"], color="red")
+            plt.axvline(data.iloc[i]["PGA_index"] / 2, color="pink")
+            plt.show()
+    plt.plot(data["CDM_index"], label="Current cdm")
+    plt.plot(data["PGA_index"] / 2, label="Current pga")
+    plt.plot(centers, label="Computed cdm")
+    plt.legend(loc="best")
+    plt.show()
+    plt.plot(data["AcquisitionTime"], data["CDM_distance"] * 2, label="Current cdm")
+    plt.plot(data["AcquisitionTime"], data["PGA_distance"], label="Current pga")
+    plt.plot(data["AcquisitionTime"], centers_dist, label="Computed cdm")
+    plt.legend(loc="best")
+    plt.show()
+    # plt.plot(data["AcquisitionTime"], (data["CDM_weight"] - 17.8) * 2, label="Current cdm")
+    filt = rs.generic_iir_filter(data["PGA_weight"].values, rs.spike_filter, {
+        "maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
+    filt2 = rs.generic_iir_filter(centers_weight, rs.spike_filter, {
+        "maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
+
+    loadcells = pd.read_csv("data/agco/v2/loadcells.csv", converters={"AcquisitionTime": pd.to_datetime})
+    lc17 = loadcells[loadcells["LocationName"] == "MPass-10"]
+
+    plt.plot(data["AcquisitionTime"], filt, label="Current pga")
+    plt.plot(data["AcquisitionTime"], filt2, label="Computed cdm")
+    plt.plot(lc17["AcquisitionTime"], lc17["LoadCellWeight_t"], label="loadcell")
+    plt.legend(loc="best")
+    plt.show()
+    exit()
+
+    data = pd.read_csv("data/random/wrong_test.csv")
+    raw_data = json.loads(data["Data"][0])
+    pc = data["PulseCount"][0]
+    sf = data["SamplingFrequency"][0]
+    temp = data["Temperature"][0]
+
+    plt.plot(raw_data)
+    plt.show()
+    print(pc, sf, temp)
+    print(len(raw_data))
+
+    bang_end = detect_main_bang_end(raw_data, pc, sf)
+    wf = wavefront(raw_data, temp, 0.5, 1.5, pc, sf)
+    print(bang_end, wf)
+
+    plt.plot(raw_data)
+    plt.axvline(wf)
+    plt.axvline(bang_end)
+    plt.show()
+    exit()
 
     data = pd.read_csv("data/random/ultrasound_echoes.csv")
     print(data.columns)

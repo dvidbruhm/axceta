@@ -183,4 +183,22 @@ def smoothing(times, values, prev_smoothed_value, bin_max, min_r2_score=0.9, max
         smoothed_value, _ = exp_filter(prev_smoothed_value, reg_smoothed_value, {
             "tau": exp_filter_tau, "timestep": exp_filter_timestep, "min_fill_value": min_fill_value, "delta_value": delta_value})
 
+    if smoothed_value - prev_smoothed_value > 0.5 and smoothed_value - prev_smoothed_value < min_fill_value:
+        smoothed_value = prev_smoothed_value + 0.1
+
     return smoothed_value
+
+
+def smooth_all(times, values, bin_max, min_r2_score=0.9, max_regression_len=48, regression_weight=0.9, min_fill_value=3,
+               exp_filter_tau=2, exp_filter_timestep=1, spike_filter_max_perc=5, spike_filter_num_change=2):
+    pass
+
+    smoothed_values = []
+    smoothed_values.append(values[0])
+    for i in range(1, len(values)):
+        time_slice = times[max(0, i - 48):min(i + 1, len(values) - 1)]
+        value_slice = values[max(0, i - 48):min(i + 1, len(values) - 1)]
+        smoothed_value = smoothing(time_slice, value_slice, smoothed_values[i - 1], bin_max, min_r2_score, max_regression_len, regression_weight,
+                                   min_fill_value, exp_filter_tau, exp_filter_timestep, spike_filter_max_perc, spike_filter_num_change)
+        smoothed_values.append(smoothed_value)
+    return smoothed_values

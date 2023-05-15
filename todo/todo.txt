@@ -1,4 +1,5 @@
-     Check data of new sensors and why can't we find a 0 quality signal every time
-     Verify why pulse algo fails on certain data on agco (find solution for fail on main bang end)
-     Check agco data manually to check if there is a better way to process the raw data when the peak is larger (and when the wavefront is at the end of a large peak)
+(!!) Check agco data manually to check if there is a better way to process the raw data when the peak is larger (and when the wavefront is at the end of a large peak)
      Improve next fill prediction algo to work on other type of silos (try package such as statsforecast), (add approach to treat silos in pairing like in avinor)
+ (!) Add error bars to wavefront (maybe based on width of signal, or with different threshold i.e. 0.25, 0.5 and 0.75)
+ (!) Try elastic search
+(!!) Try to improve wavefront on troubled region (maybe try lower threshold, postprocess with max consumption speed)
