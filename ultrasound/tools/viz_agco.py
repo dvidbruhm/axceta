@@ -174,15 +174,15 @@ if __name__ == "__main__":
                 tof_high = algos.wavefront(raw_data, temperature, 0.9, 1.5, pulse_count)
                 error_tof = (tof_high - tof_low) / 2
 
-                dist = utils.tof_to_dist2(tof_raw, temperature) * 2000
+                dist_offset = utils.tof_to_dist2(tof_raw, temperature) * 2000
                 dist_lowpass = utils.tof_to_dist2(tof, temperature) * 2000
                 dist_low = utils.tof_to_dist2(tof - error_tof, temperature) * 2000
                 dist_high = utils.tof_to_dist2(tof + error_tof, temperature) * 2000
                 dist_mean = utils.tof_to_dist2((tof + tof_raw + tof_low + tof_high) / 4, temperature) * 2000
                 error_dist = utils.tof_to_dist2(error_tof, temperature) * 2000
 
-                error_vol = dist_to_volume((dist + error_dist) / 1000, "allo", silo_data)
-                vol = dist_to_volume(dist / 1000, "allo", silo_data)
+                error_vol = dist_to_volume((dist_offset + error_dist) / 1000, "allo", silo_data)
+                vol = dist_to_volume(dist_offset / 1000, "allo", silo_data)
                 vol_lowpass = dist_to_volume(dist_lowpass / 1000, "allo", silo_data)
                 error_vol = abs(error_vol - vol)
 
@@ -194,7 +194,7 @@ if __name__ == "__main__":
                 computed_vols.append(vol)
                 computed_vols_lowpass.append(vol_lowpass)
                 computed_vols_error.append(error_vol)
-                computed_distances.append(dist)
+                computed_distances.append(dist_offset)
                 computed_distances_low.append(dist_low)
                 computed_distances_high.append(dist_high)
                 mean_distances.append(dist_mean)

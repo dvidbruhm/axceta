@@ -21,6 +21,8 @@ aquarel = "^0.0.5"
 scikit-learn = "^1.2.2"
 regressio = "^1.0.1"
 ipykernel = "^6.23.0"
+streamlit = "^1.22.0"
+streamlit-plotly-events = "^0.0.6"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^6.0.0"

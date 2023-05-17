@@ -399,9 +399,9 @@ if __name__ == "__main__":
         raw_data = json.loads(data.iloc[i]["rawdata"])
         cdm = center_of_mass(raw_data, 31)
         centers.append(cdm)
-        dist = utils.tof_to_dist2(cdm, data.iloc[i]["temperature"]) * 2000
-        centers_dist.append(dist)
-        centers_weight.append(dist_to_volume(dist / 1000, "allo", silo_data_17))
+        dist_offset = utils.tof_to_dist2(cdm, data.iloc[i]["temperature"]) * 2000
+        centers_dist.append(dist_offset)
+        centers_weight.append(dist_to_volume(dist_offset / 1000, "allo", silo_data_17))
         if i in []:
             plt.plot(raw_data)
             plt.axvline(cdm, color="green")

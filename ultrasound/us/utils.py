@@ -55,37 +55,63 @@ let volumeInRoof = pi() / 3 * (pow(newR3, 2) + pow(R1TopCone, 2) + R1TopCone * n
 
 def dist_to_volume_agco(dist, silo_data):
     sd = silo_data
-    h_roof = sd["HeightGroundToTopOfBin"] - sd["HeightGroundToTopOfCylinder"]
-    h_cylinder = sd["HeightGroundToTopOfCylinder"] - sd["HeightGroundToTopOfCone"]
+    dist_offset = dist + sd["SensorOffset"]
     h_cone = sd["HeightGroundToTopOfCone"] - sd["HeightGroundToBin"]
-    roof_volume = (math.pi / 3) * h_roof * (sd["TopOfConeRadius"] ** 2 + sd["TopOfRoofRadius"] ** 2 + sd["TopOfConeRadius"] * sd["TopOfRoofRadius"])
+    h_cylinder = sd["HeightGroundToTopOfCylinder"] - sd["HeightGroundToTopOfCone"]
+    h_roof = sd["HeightGroundToTopOfBin"] - sd["HeightGroundToTopOfCylinder"]
+
+    roof_volume = math.pi / 3 * h_roof * (sd["TopOfConeRadius"] ** 2 + sd["TopOfRoofRadius"] ** 2 + (sd["TopOfConeRadius"] * sd["TopOfRoofRadius"]))
     cylinder_volume = math.pi * sd["TopOfConeRadius"] ** 2 * h_cylinder
     hopper_volume = (math.pi / 3) * h_cone * (sd["TopOfConeRadius"] ** 2 + sd["BottomOfConeRadius"] ** 2
                                               + sd["TopOfConeRadius"] * sd["BottomOfConeRadius"])
     total_volume = roof_volume + cylinder_volume + hopper_volume
 
-    print(hopper_volume)
     new_r1 = sd["TopOfConeRadius"] - (math.tan(math.radians(sd["ConeAngle"])) *
-                                      (h_cone - (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist)))
-    volume_in_cylinder = math.pi * sd["TopOfConeRadius"] ** 2 * (h_cylinder + h_cone - dist) + hopper_volume
-    volume_in_cone = (math.pi / 3) * (new_r1 ** 2 + sd["BottomOfConeRadius"] ** 2
-                                      + new_r1 * sd["BottomOfConeRadius"]) * (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist)
+                                      (h_cone - (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)))
 
-    new_r3 = dist * math.tan(math.radians(sd["RoofAngle"])) + sd["TopOfRoofRadius"]
-    volume_in_roof = (math.pi / 3) * (new_r3 ** 2 + sd["TopOfConeRadius"] ** 2 + new_r3 * sd["TopOfConeRadius"]) * (h_roof - dist)
+    volume_in_cylinder = math.pi * (sd["TopOfConeRadius"] ** 2) * ((h_cylinder + h_roof) - dist_offset) + hopper_volume
+
+    volume_in_cone = (math.pi / 3) * (new_r1 ** 2 + sd["BottomOfConeRadius"] ** 2
+                                      + new_r1 * sd["BottomOfConeRadius"]) * (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)
+
+    new_r3 = dist_offset * math.tan(math.radians(sd["RoofAngle"])) + sd["TopOfRoofRadius"]
+    volume_in_roof = (math.pi / 3) * (new_r3 ** 2 + sd["TopOfConeRadius"] ** 2 + new_r3 * sd["TopOfConeRadius"]) * (h_roof - dist_offset)
 
     current_volume = None
-    if dist < h_roof:
-        print("1")
+    if dist_offset < h_roof:
         current_volume = volume_in_roof + cylinder_volume + hopper_volume
-    elif dist >= (h_roof + h_cylinder):
-        print("2")
+    elif dist_offset >= (h_roof + h_cylinder):
         current_volume = volume_in_cone
     else:
-        print("3")
         current_volume = volume_in_cylinder
 
     return current_volume
+
+
+agco_silo_data = {
+    "ConeHeight": 2.918,
+    "HeightGroundToBin": 0.7,
+    "HeightGroundToTopOfCone": 3.618,
+    "HeightGroundToTopOfCylinder": 6.895,
+    "HeightGroundToTopOfBin": 8.230,
+    "CylinderHeight": 3.277,
+    "ConeAngle": 30,
+    "RoofAngle": 50,
+    "TopOfConeRadius": 1.82,
+    "BottomOfConeRadius": 0.135,
+    "TopOfRoofRadius": 0.229,
+    "ConeVolume": 10.93,
+    "BinVolume": 50.318,
+    "SensorOffset": 0.335,
+}
+"""
+0,5m = 48,821m3
+1m = 45,124m3
+2m = 34,718
+5m = 5,055m3
+"""
+dist = 2
+print(dist_to_volume_agco(dist, agco_silo_data))
 
 
 def dist_to_volume(dist: float, silo_data: dict) -> np.ndarray:
