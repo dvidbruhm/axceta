@@ -19,17 +19,20 @@ silo_data = None
 
 
 class Silos(Enum):
-    AGCO = auto()
-    A1486A = auto()
+    AGCO = "Mpass-10"
+    A1486A = "Avinor-1486A"
 
 
 def get_silo_data(silo):
     silo_datas = pd.read_csv("data/dashboard/LocationMetadata.csv")
-    if silo == Silos.AGCO:
-        silo_data = silo_datas[silo_datas["LocationName"] == "Mpass-10"].reset_index().iloc[0]
+    if silo.value == Silos.AGCO.value:
+        st.write(f"1{silo}")
+        silo_data = silo_datas[silo_datas["LocationName"] == "Mpass-10"].squeeze()
+        st.write(silo_data)
+        st.write(type(silo_data))
         return silo_data.to_dict()
     elif silo == Silos.A1486A:
-        # TODO
+        silo_data = silo_datas[silo_datas["LocationName"] == "Avinor-1486A"].reset_index().iloc[0]
         return utils.agco_silo_data
     return
 
@@ -47,6 +50,7 @@ def read_data():
 @st.cache_data
 def compute_wavefront(data):
     global temperature_col, pulse_count_col, raw_data_col, silo_data
+    print(silo_data)
     wf_index = data.apply(lambda row: algos.wavefront(json.loads(row[raw_data_col[0]]),
                                                       row[temperature_col[0]], 0.5, 10, row[pulse_count_col[0]]) * 2, axis=1)
     data["wf_index"] = wf_index
@@ -87,7 +91,7 @@ def compute_enveloppe(data):
 
 
 def data_selections(data, data_lc):
-    global temperature_col, pulse_count_col, raw_data_col, density, silo_data
+    global temperature_col, pulse_count_col, raw_data_col, density, silo_data, silo_type
     cols = st.columns(5)
 
     density = cols[0].number_input("Density", min_value=60, max_value=80, value=70)
@@ -95,7 +99,9 @@ def data_selections(data, data_lc):
     pulse_count_col = cols[2].multiselect("Pulse count column", data.columns, max_selections=1)
     raw_data_col = cols[3].multiselect("Raw data column", data.columns, max_selections=1)
     silo_type = cols[4].multiselect("Silo data to use", [Silos.AGCO, Silos.A1486A], max_selections=1)
-    silo_data = get_silo_data(silo_type)
+    if len(silo_type) > 0:
+        silo_data = get_silo_data(silo_type[0])
+        st.write(silo_data)
 
 
 def plot_main(data, data_lc):
@@ -156,7 +162,7 @@ def plot_raw(data):
 
 
 def main():
-    global temperature_col, pulse_count_col, raw_data_col, main_fig, main_plot_spot, silo_data
+    global temperature_col, pulse_count_col, raw_data_col, main_fig, main_plot_spot, silo_data, silo_type
     st.set_page_config(layout="wide")
     st.write("# Silo viz tool")
     show_df = st.checkbox("Show dataframes")
