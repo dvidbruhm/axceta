@@ -1,30 +1,5 @@
-from pathlib import Path
-from rich import print
-import numpy as np
 import math
-
-
-def assert_csv(file: Path):
-    assert str(file.absolute())[-4:] == ".csv", "Input file should be a csv"
-
-
-def temp_to_sound_speed(temp_celsius: float) -> float:
-    zero_c_kelvin = 273.15
-    temp_kelvin = temp_celsius + zero_c_kelvin
-    sound_speed = 20.02 * np.sqrt(temp_kelvin)
-    return sound_speed
-
-
-def tof_to_dist(tof, sound_speed):
-    dist = sound_speed * tof * 1e-6 / 2
-    return dist
-
-
-def tof_to_dist2(tof, temp_celsius):
-    sound_speed = temp_to_sound_speed(temp_celsius)
-    dist = tof_to_dist(tof, sound_speed)
-    return dist
-
+import numpy as np
 
 agco_silo_data = {
     "ConeHeight": 2.918,
@@ -79,20 +54,33 @@ def dist_to_volume_agco(dist, silo_data):
     return current_volume
 
 
-def dist_to_volume(dist: float, silo_data: dict) -> np.ndarray:
+def dist_to_volume(dist: float, silo_name: str, silo_data: dict) -> np.ndarray:
+    # print(conversion_data.columns)
+    # silo_data = conversion_data.loc[conversion_data["LocationName"] == silo_name]
+
+    # print(silo_data)
+    # print(silo_name)
+    # print(conversion_data)
     h1, h2, h3 = silo_data["H1"], silo_data["H2"], silo_data["H3"]
+    # print("H1, H2, H3 : ", h1, h2, h3)
     diam, angle = silo_data["Diametre"], silo_data["Angle (degré)"]
     offset = silo_data["Offset du device"]
+    # print("Diameter, angle, offset : ", diam, angle, offset)
     max_d = h3 - h1 - offset
     r1 = diam / 2
     cone_height = h2 - h1
     r2 = r1 - (cone_height * math.tan(math.radians(angle)))
+    if "CDPQA" in silo_name:
+        r2 = 0.4445
+    # print("R1, R2, Cone Height : ", r1, r2, cone_height)
     vol_cone = (1 / 3) * math.pi * (r1**2 + r2**2 + r1 * r2) * cone_height
     h_cyl = h3 - h2
     vol_cyl = math.pi * r1**2 * h_cyl
+    # print("VolumeCone, HeightCylinder, VolumeCylinder : ", vol_cone, h_cyl, vol_cyl)
     vol_tot = vol_cyl + vol_cone
     dist_tot = dist + offset
     new_r1 = (cone_height - (dist_tot - h_cyl)) * math.tan(math.radians(angle)) + r2 if dist_tot > h_cyl else 0
+    # print("Total Volume, Total distance, New R1 : ", vol_tot, dist_tot, new_r1)
     density = silo_data["densité de moulé (kg/hl)"]
     if dist_tot <= h_cyl:
         vol_hecto = (math.pi * r1 * r1 * (h_cyl - dist_tot) + vol_cone) * 10
@@ -100,5 +88,18 @@ def dist_to_volume(dist: float, silo_data: dict) -> np.ndarray:
         vol_hecto = (1 / 3) * math.pi * (new_r1**2 + r2**2 + new_r1 * r2) * (h3 - h1 - dist_tot) * 10
 
     perc_fill = vol_hecto / vol_tot * 10
+    # print("Volume Hecto, Percent : ", vol_hecto, perc_fill)
+
+    # print(vol_tot, dist_tot, new_r1)
+    # print(density, vol_hecto, perc_fill)
+
     weight = vol_hecto * density / 1000
     return weight
+
+
+def tof_to_dist(tof, temp_celsius):
+    zero_c_kelvin = 273.15
+    temp_kelvin = temp_celsius + zero_c_kelvin
+    sound_speed = 20.02 * np.sqrt(temp_kelvin)
+    dist = sound_speed * tof * 1e-6 / 2
+    return dist

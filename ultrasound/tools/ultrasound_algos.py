@@ -325,58 +325,35 @@ def center_of_mass(data, pulse_count, sample_rate=500000):
     return center
 
 
-silo_data_17 = {
-    "H1": 0.7,
-    "H2": 3.618,
-    "H3": 8.217,
-    "Diametre": 3.64,
-    "Angle (degré)": 30,
-    "Offset du device": 0.335,
-    "densité de moulé (kg/hl)": 75,
-}
+import scipy.signal as signal
+from scipy import interpolate
 
 
-def dist_to_volume(dist: float, silo_name: str, silo_data: dict) -> np.ndarray:
-    # print(conversion_data.columns)
-    # silo_data = conversion_data.loc[conversion_data["LocationName"] == silo_name]
+def fill_nan(A):
+    '''
+    interpolate to fill nan values
+    '''
+    inds = np.arange(A.shape[0])
+    good = np.where(np.isfinite(A))
+    f = interpolate.interp1d(inds[good], A[good], bounds_error=False, kind="linear")
+    B = np.where(np.isfinite(A), A, f(inds))
+    return B
 
-    # print(silo_data)
-    # print(silo_name)
-    # print(conversion_data)
-    h1, h2, h3 = silo_data["H1"], silo_data["H2"], silo_data["H3"]
-    # print("H1, H2, H3 : ", h1, h2, h3)
-    diam, angle = silo_data["Diametre"], silo_data["Angle (degré)"]
-    offset = silo_data["Offset du device"]
-    # print("Diameter, angle, offset : ", diam, angle, offset)
-    max_d = h3 - h1 - offset
-    r1 = diam / 2
-    cone_height = h2 - h1
-    r2 = r1 - (cone_height * math.tan(math.radians(angle)))
-    if "CDPQA" in silo_name:
-        r2 = 0.4445
-    # print("R1, R2, Cone Height : ", r1, r2, cone_height)
-    vol_cone = (1 / 3) * math.pi * (r1**2 + r2**2 + r1 * r2) * cone_height
-    h_cyl = h3 - h2
-    vol_cyl = math.pi * r1**2 * h_cyl
-    # print("VolumeCone, HeightCylinder, VolumeCylinder : ", vol_cone, h_cyl, vol_cyl)
-    vol_tot = vol_cyl + vol_cone
-    dist_tot = dist + offset
-    new_r1 = (cone_height - (dist_tot - h_cyl)) * math.tan(math.radians(angle)) + r2 if dist_tot > h_cyl else 0
-    # print("Total Volume, Total distance, New R1 : ", vol_tot, dist_tot, new_r1)
-    density = silo_data["densité de moulé (kg/hl)"]
-    if dist_tot <= h_cyl:
-        vol_hecto = (math.pi * r1 * r1 * (h_cyl - dist_tot) + vol_cone) * 10
-    else:
-        vol_hecto = (1 / 3) * math.pi * (new_r1**2 + r2**2 + new_r1 * r2) * (h3 - h1 - dist_tot) * 10
 
-    perc_fill = vol_hecto / vol_tot * 10
-    # print("Volume Hecto, Percent : ", vol_hecto, perc_fill)
+def enveloppe(data, pulse_count, sample_rate=500000):
+    # Find end of bang
+    data = np.array(data)
+    bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
+    peaks, _ = signal.find_peaks(data, height=0)
+    new_data = np.zeros(len(data))
+    for i in range(len(data)):
+        if i <= bang_end or i in peaks:
+            new_data[i] = data[i]
+            continue
 
-    # print(vol_tot, dist_tot, new_r1)
-    # print(density, vol_hecto, perc_fill)
-
-    weight = vol_hecto * density / 1000
-    return weight
+        new_data[i] = np.nan
+    new_data = fill_nan(new_data)
+    return new_data
 
 
 if __name__ == "__main__":
@@ -387,11 +364,16 @@ if __name__ == "__main__":
     from rich import print
     from rich.progress import track
     import tools.smoothing as rs
+    import timeit
 
     print("Loading data...")
-    data = pd.read_csv("data/agco/v2/p2c-17.csv", converters={"AcquisitionTime": pd.to_datetime})
+    data = pd.read_csv("data/dashboard/p2c-8--MPass7.csv", converters={"AcquisitionTime": pd.to_datetime})
     print("Done.")
     print(data.columns)
+    for i in track(range(0, len(data))):
+        raw = json.loads(data.iloc[0]["rawdata"])
+        env = enveloppe(raw, 31)
+    exit()
     centers = []
     centers_dist = []
     centers_weight = []
