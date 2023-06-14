@@ -5,3 +5,10 @@
 [2023-04-19] -  (!) Check why there are two raw data that gives different gain_quality results with subsample by 2
 [2023-04-26] -      Verify why pulse algo fails on certain data on agco (find solution for fail on main bang end)
 [2023-04-26] -      Check data of new sensors and why can't we find a 0 quality signal every time
+[2023-06-14] - (!!) Check agco data manually to check if there is a better way to process the raw data when the peak is larger (and when the wavefront is at the end of a large peak)
+[2023-06-14] - (!!) Try to improve wavefront on troubled region (maybe try lower threshold, postprocess with max consumption speed)
+[2023-06-14] -      Improve next fill prediction algo to work on other type of silos (try package such as statsforecast), (add approach to treat silos in pairing like in avinor)
+[2023-06-14] -      Try using best points per x hours (i.e. the best point or average or ... in 4 hours and show only 1 point per 4 hours)
+[2023-06-14] -      Find way to use lowpass only when silo is not full
+[2023-06-14] -      Test CDM on all silos
+[2023-06-14] -      Check data in percentage

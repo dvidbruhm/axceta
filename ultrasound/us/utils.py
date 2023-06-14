@@ -26,6 +26,12 @@ def tof_to_dist2(tof, temp_celsius):
     return dist
 
 
+def dist_to_tof(dist, temp_celsius):
+    sound_speed = temp_to_sound_speed(temp_celsius)
+    tof = dist * 2 / (sound_speed * 1e-6)
+    return tof
+
+
 agco_silo_data = {
     "ConeHeight": 2.918,
     "HeightGroundToBin": 0.7,
@@ -42,6 +48,43 @@ agco_silo_data = {
     "BinVolume": 50.318,
     "SensorOffset": 0.335,
 }
+
+"""
+let SensorOffset = toreal(siloDetails["SensorOffset"])
+let H_Cone = toreal(siloDetails["ConeHeight"])
+let _Height1 = toreal(siloDetails["HeightGroundToTopOfBin"])
+let _Height2 = toreal(siloDetails["HeightGroundToTopOfCone"])
+let _Height3 = toreal(siloDetails["HeightGroundToBin"])
+let H_Cylindre = toreal(siloDetails["CylinderHeight"])
+let Angle = toreal(siloDetails["ConeAngle"])
+let R1TopCone = toreal(siloDetails["TopOfConeRadius"])
+let R2BasCone = toreal(siloDetails["BottomOfConeRadius"])
+let VolumeDuCone = toreal(siloDetails["ConeVolume"])
+let VolumeTotal = toreal(siloDetails["BinVolume"])
+let FeedRemainingM3 = LoadCellWeight_t * 1000 / density / 10.0
+iff(FeedRemainingM3 <= VolumeDuCone, H_Cylindre + H_Cone - SensorOffset -
+    (pow((FeedRemainingM3 / VolumeDuCone * (pow(R1TopCone, 3) - pow(R2BasCone, 3)) + pow(R2BasCone, 3)),
+         0.3333333333333333) - R2BasCone) * cot(radians(Angle)),
+    -(FeedRemainingM3 - VolumeDuCone) / (pi() * pow(R1TopCone, 2)) + H_Cylindre - SensorOffset)
+"""
+
+
+def cotan(angle):
+    return 1 / math.tan(angle)
+
+
+def weight_to_tof(weight, silo_data, density, temp_celsius):
+    volume = weight * 100 / density
+    if volume <= silo_data["ConeVolume"]:
+        offset = silo_data["CylinderHeight"] + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
+        dist = offset - (((volume / silo_data["ConeVolume"] * (silo_data["TopOfConeRadius"] ** 3 - silo_data["BottomOfConeRadius"] **
+                         3) + silo_data["BottomOfConeRadius"] ** 3) ** 0.333333333) - silo_data["BottomOfConeRadius"]) * cotan(math.radians(silo_data["ConeAngle"]))
+    else:
+        dist = -(volume - silo_data["ConeVolume"]) / (math.pi * silo_data["TopOfConeRadius"]
+                                                      ** 2) + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
+
+    tof = dist_to_tof(dist, temp_celsius)
+    return tof
 
 
 def dist_to_volume_agco(dist, silo_data):

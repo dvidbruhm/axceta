@@ -23,6 +23,7 @@ regressio = "^1.0.1"
 ipykernel = "^6.23.0"
 streamlit = "^1.22.0"
 streamlit-plotly-events = "^0.0.6"
+lmfit = "^1.2.1"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^6.0.0"

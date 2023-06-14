@@ -98,12 +98,88 @@ def savgol_filter(data, window_size, ):
 
 if __name__ == "__main__":
     from regressio.models import cubic_spline, linear_regression, exp_moving_average, isotonic_regression, knn_kernel
+    import scipy
+    from scipy.optimize import curve_fit
     data_path = "data/agco/v2/p2c-17.csv"
     data = pd.read_csv(data_path, converters={"AcquisitionTime": pd.to_datetime})
-
+    data = data[270:500]
     print(data.columns)
     pga = rs.generic_iir_filter(data["PGA_weight"].values, rs.spike_filter, {
                                 "maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
+
+    values = np.array(pga)
+    time = np.array(data["AcquisitionTime"], dtype=np.datetime64)
+
+    start_time, end_time = time[0], time[-1]
+
+    time = time.astype(np.float64)
+    time = (time - np.min(time)) / (np.max(time) - np.min(time))
+    time_step = time[1] - time[0]
+    # time = np.linspace(0, 10, 101)
+    # values = -np.heaviside((time - 5), 0.)
+
+    def sigmoid(x, x0, b, c, d):
+        return c * scipy.special.expit((x - x0) * b) + d
+
+    def multi_sigmoid(x, N, *args):
+        x0s, a0s, b0s, d = list(args[0][:N]), list(args[0][N:2 * N]), list(args[0][2 * N:3 * N]), args[0][-1]
+        s = 0
+        for i in range(N):
+            s += sigmoid(x, x0s[i], a0s[i], b0s[i], 0)
+        s += d
+        return s
+
+    plt.plot(time, values)
+    from lmfit import Model
+    lmodel = Model(multi_sigmoid)
+    params = lmodel.make_params(N=2, args=[0.2, 0.5, 30, 50, -1, -1, 5])
+    result = lmodel.fit(values, params, x=time)
+    print(result.params)
+    plt.plot(time, result.best_fit)
+    plt.show()
+    exit()
+
+    # plt.plot(time, multi_sigmoid(time, 3, [0.2, 0.5, 0.75, 30, 50, 200, -1, -1, -1, 5]))
+    # plt.show()
+
+    n = 2
+    n_params = n * 3 + 1
+    lower_bounds = []
+    upper_bounds = []
+    params_0 = []
+    for i in range(n_params):
+        if i < n:
+            lower_bounds.append(0)
+            upper_bounds.append(1)
+            params_0.append((i / n) + (1 / n / 2))
+        elif i < 2 * n:
+            params_0.append(100)
+            lower_bounds.append(50)
+            upper_bounds.append(500)
+        elif i < 3 * n:
+            params_0.append(-3)
+            lower_bounds.append(-30)
+            upper_bounds.append(0)
+        else:
+            params_0.append(5)
+            lower_bounds.append(0)
+            upper_bounds.append(60)
+    print(params_0)
+    print(lower_bounds)
+    print(upper_bounds)
+    args, cov = curve_fit(lambda x, *params_0: multi_sigmoid(x, n, params_0), time, values, p0=params_0)
+    # args, cov = curve_fit(
+    #    multi_sigmoid, time, values,
+    #    bounds=(lower_bounds, upper_bounds))
+    print([round(elem, 2) for elem in args])
+    plt.scatter(time, values)
+    plt.plot(time, multi_sigmoid(time, n, *[args]))
+    plt.plot(time, multi_sigmoid(time, n, [0.2, 0.5, 100, 100, -2, -3, 5]))
+    plt.plot(time, multi_sigmoid(time, n, *[params_0]))
+    plt.show()
+
+    exit()
+
     cubic_splined = knn_kernel(n=10)
     cubic_splined.fit(data["AcquisitionTime"].values.astype(np.float64), pga, confidence_interval=0.99, plot=True)
     cubic_splined2 = knn_kernel(n=10)

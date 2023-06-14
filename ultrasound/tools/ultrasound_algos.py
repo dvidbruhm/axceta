@@ -292,6 +292,50 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
     return wf_index_interpolated
 
 
+def lowpass_wavefront(data, temperature, threshold, pulse_count, window_in_meters=5, sample_rate=500000, cutoff_freq=150, no_data_threshold=20):
+    """Computes the wavefront on a lowpass of the raw signal, and chooses the best wavefront
+
+    Parameters
+    ----------
+    data : List[int]
+        Raw ultrasound data
+    temperature : float
+        Temperature of the device in Celsius
+    threshold : float ([0 - 1])
+        Threshold as a fraction of the max value to find the wavefront, between 0 and 1
+    pulse_count : int
+        Pulse count parameter of the PGA
+    window_in_meters : float
+        Window around the max value in which to find the wavefront, in meters
+    sample_rate : int, optional
+        Sample rate of the signal in Hz, by default 500000
+    cutoff_freq : float, optional
+        Cutoff frequency of the lowpass filter
+    no_data_threshold : float, optional
+        Noise threshold at which we consider there is true signal
+
+    Returns
+    -------
+    int
+        Index of the wavefront, returns -1 if no wavefront index is found
+    """
+
+    # Compute the normal wavefront
+    wf = wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate=sample_rate)
+
+    # Compute the lowpass filter
+    b, a = signal.butter(2, cutoff_freq / 250000, 'lowpass', analog=False)
+    lowpass = signal.filtfilt(b, a, data)
+    lowpass_bang_end = detect_main_bang_end(lowpass, pulse_count)
+    lowpass_wf = wavefront(lowpass, temperature, threshold, window_in_meters, pulse_count, sample_rate=sample_rate)
+
+    # Check if there is signal after the main bang and choose the wavefront accordingly
+    best_wf = lowpass_wf
+    if max(data[lowpass_bang_end:]) < no_data_threshold:
+        best_wf = wf
+    return best_wf
+
+
 def before_wavefront(data, temperature, threshold, window_in_meters, pulse_count, threshold_before, sample_rate=500000):
     bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
     wf = wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate)
@@ -370,9 +414,9 @@ if __name__ == "__main__":
     data = pd.read_csv("data/dashboard/p2c-8--MPass7.csv", converters={"AcquisitionTime": pd.to_datetime})
     print("Done.")
     print(data.columns)
-    for i in track(range(0, len(data))):
-        raw = json.loads(data.iloc[0]["rawdata"])
-        env = enveloppe(raw, 31)
+    for i in track(range(0, len(data), 20)):
+        raw = json.loads(data.iloc[i]["rawdata"])
+        lowpass_wavefront(raw, 0, 0.5, 31)
     exit()
     centers = []
     centers_dist = []

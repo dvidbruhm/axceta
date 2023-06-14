@@ -97,9 +97,47 @@ def dist_to_volume(dist: float, silo_name: str, silo_data: dict) -> np.ndarray:
     return weight
 
 
+def temp_to_sound_speed(temp_celsius: float) -> float:
+    zero_c_kelvin = 273.15
+    temp_kelvin = temp_celsius + zero_c_kelvin
+    sound_speed = 20.02 * np.sqrt(temp_kelvin)
+    return sound_speed
+
+
+def dist_to_tof(dist, temp_celsius):
+    sound_speed = temp_to_sound_speed(temp_celsius)
+    tof = dist * 2 / (sound_speed * 1e-6)
+    return tof
+
+
 def tof_to_dist(tof, temp_celsius):
     zero_c_kelvin = 273.15
     temp_kelvin = temp_celsius + zero_c_kelvin
     sound_speed = 20.02 * np.sqrt(temp_kelvin)
     dist = sound_speed * tof * 1e-6 / 2
     return dist
+
+
+def cotan(angle):
+    return 1 / math.tan(angle)
+
+
+def weight_to_tof(weight, silo_data, density, temp_celsius):
+    volume = weight * 100 / density
+    if volume <= silo_data["ConeVolume"]:
+        print(1)
+        offset = silo_data["CylinderHeight"] + silo_data["ConeHeight"] - silo_data["SensorOffset"]
+        dist = offset - (((volume / silo_data["ConeVolume"] * ((silo_data["TopOfConeRadius"] ** 3) - (silo_data["BottomOfConeRadius"] ** 3)
+                                                               ) + silo_data["BottomOfConeRadius"] ** 3) ** 0.333333333) - silo_data["BottomOfConeRadius"]) * cotan(math.radians(silo_data["ConeAngle"]))
+    else:
+        print(2)
+        dist = -(volume - silo_data["ConeVolume"]) / (math.pi * (silo_data["TopOfConeRadius"] ** 2)
+                                                      ) + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
+
+    print(dist)
+    tof = dist_to_tof(dist, temp_celsius)
+    print(tof)
+    return tof
+
+
+weight_to_tof(30, agco_silo_data, 65, 0)
