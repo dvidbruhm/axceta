@@ -24,6 +24,7 @@ ipykernel = "^6.23.0"
 streamlit = "^1.22.0"
 streamlit-plotly-events = "^0.0.6"
 lmfit = "^1.2.1"
+polars = "^0.19.1"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^6.0.0"
@@ -35,6 +36,10 @@ nbformat = "^5.8.0"
 
 [tool.poetry.scripts]
 us = 'us.main:app'
+
+[tool.pyright]
+venvPath = '~/.cache/pypoetry/virtualenvs/'
+venv = 'us-xIquBner-py3.11'
 
 [build-system]
 requires = ["setuptools", "poetry-core"]

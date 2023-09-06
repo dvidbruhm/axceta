@@ -1,11 +1,20 @@
 from pathlib import Path
-from rich import print
 import numpy as np
 import math
+import pandas as pd
 
 
 def assert_csv(file: Path):
     assert str(file.absolute())[-4:] == ".csv", "Input file should be a csv"
+
+
+def get_silo_data(file, silo_name):
+    silo_datas = pd.read_csv(file)
+    silo_data = silo_datas[silo_datas["LocationName"] == silo_name].to_dict(orient="records")[0]
+    return silo_data
+
+
+get_silo_data("data/silo_data.csv", "Paquette2-6")
 
 
 def temp_to_sound_speed(temp_celsius: float) -> float:
@@ -85,6 +94,18 @@ def weight_to_tof(weight, silo_data, density, temp_celsius):
 
     tof = dist_to_tof(dist, temp_celsius)
     return tof
+
+
+def weight_to_dist(weight, silo_data, density, temp_celsius):
+    volume = weight * 100 / density
+    if volume <= silo_data["ConeVolume"]:
+        offset = silo_data["CylinderHeight"] + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
+        dist = offset - (((volume / silo_data["ConeVolume"] * (silo_data["TopOfConeRadius"] ** 3 - silo_data["BottomOfConeRadius"] **
+                         3) + silo_data["BottomOfConeRadius"] ** 3) ** 0.333333333) - silo_data["BottomOfConeRadius"]) * cotan(math.radians(silo_data["ConeAngle"]))
+    else:
+        dist = -(volume - silo_data["ConeVolume"]) / (math.pi * silo_data["TopOfConeRadius"]
+                                                      ** 2) + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
+    return dist
 
 
 def dist_to_volume_agco(dist, silo_data):

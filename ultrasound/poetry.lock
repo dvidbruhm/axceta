@@ -2134,6 +2134,39 @@ packaging = "*"
 tenacity = ">=6.2.0"
 
 [[package]]
+name = "polars"
+version = "0.19.1"
+description = "Blazingly fast DataFrame library"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "polars-0.19.1-cp38-abi3-macosx_10_7_x86_64.whl", hash = "sha256:4430232b111de1930a99b9ece9e5ab87d77d097def673e05a63a40fc3994eae2"},
+    {file = "polars-0.19.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:492ab0dfd9f91d71265875f95d1069cb8c74804429324272151ac80db85dd4a7"},
+    {file = "polars-0.19.1-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3db6c222331590395c631e9f026e90252e5793127e9f3b8ae997603cd75851dd"},
+    {file = "polars-0.19.1-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:787f49ed29486a12a892efba35b8cc38c09c3a0affca385f5e1b9707049f9dd7"},
+    {file = "polars-0.19.1-cp38-abi3-win_amd64.whl", hash = "sha256:b278a37c491939016b74fae8f7258c33bc2844885329f472c8000cb661202c3c"},
+    {file = "polars-0.19.1.tar.gz", hash = "sha256:d14be16d49a2342a04c147360ead3a26ac54c4f10e917f422c43ddb365aede90"},
+]
+
+[package.extras]
+adbc = ["adbc_driver_sqlite"]
+all = ["polars[adbc,cloudpickle,connectorx,deltalake,fsspec,matplotlib,numpy,pandas,pyarrow,pydantic,sqlalchemy,timezone,xlsx2csv,xlsxwriter]"]
+cloudpickle = ["cloudpickle"]
+connectorx = ["connectorx"]
+deltalake = ["deltalake (>=0.10.0)"]
+fsspec = ["fsspec"]
+matplotlib = ["matplotlib"]
+numpy = ["numpy (>=1.16.0)"]
+pandas = ["pandas", "pyarrow (>=7.0.0)"]
+pyarrow = ["pyarrow (>=7.0.0)"]
+pydantic = ["pydantic"]
+sqlalchemy = ["pandas", "sqlalchemy"]
+timezone = ["backports.zoneinfo", "tzdata"]
+xlsx2csv = ["xlsx2csv (>=0.8.0)"]
+xlsxwriter = ["xlsxwriter"]
+
+[[package]]
 name = "prompt-toolkit"
 version = "3.0.38"
 description = "Library for building powerful interactive command lines in Python"
@@ -3512,4 +3545,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "6c8be6358aa975cf7a1d78945335c8a7614f1d84714ac1806217ab1d71b64703"
+content-hash = "9d117d9789ff6682239f9e3d3e7429c0777313944a276fe3c2c07edadd9c32e7"

@@ -3,12 +3,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def get_mean_consumption(values, max_delta_tons=2):
+def get_mean_consumption(values, max_delta=2):
     mean_consum = 0
     count = 0
     for i, d in enumerate(np.diff(values)):
-        if d > 2:
-            continue
+        if max_delta > 0:
+            if d > max_delta:
+                continue
+        else:
+            if d < max_delta:
+                continue
         mean_consum += d
         count += 1
     mean_consum /= count

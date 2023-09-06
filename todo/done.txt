@@ -12,3 +12,4 @@
 [2023-06-14] -      Find way to use lowpass only when silo is not full
 [2023-06-14] -      Test CDM on all silos
 [2023-06-14] -      Check data in percentage
+[2023-07-20] - (!!) Fix wavefront with lowpass filter (see example)

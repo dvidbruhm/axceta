@@ -1,6 +1,16 @@
 import math
 import numpy as np
 
+
+def select_silo(df, silo_name):
+    df = df[df["LocationName"] == silo_name].reset_index()
+    return df
+
+
+def str_raw_data_to_list(raw_data, sep=","):
+    return list(map(int, raw_data.strip('][').replace('"', '').split(sep)))
+
+
 agco_silo_data = {
     "ConeHeight": 2.918,
     "HeightGroundToBin": 0.7,
@@ -140,4 +150,5 @@ def weight_to_tof(weight, silo_data, density, temp_celsius):
     return tof
 
 
-weight_to_tof(30, agco_silo_data, 65, 0)
+if __name__ == "__main__":
+    weight_to_tof(30, agco_silo_data, 65, 0)

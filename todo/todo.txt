@@ -1,5 +1,7 @@
- (!) Add error bars to wavefront (maybe based on width of signal, or with different threshold i.e. 0.25, 0.5 and 0.75)
+     Add error bars to wavefront (maybe based on width of signal, or with different threshold i.e. 0.25, 0.5 and 0.75)
 (--) Try elastic search
      Check if possible to detect outliers with prediction tendency
-(!!) Fix wavefront with lowpass filter (see example)
-(!!) Add characteristic parameters to wavefront function
+ (!) Fit multi step (sigmoid) function to agco data
+(!!) Proof of concept wavefront basee sur la fenetre basé sur la prédiction de la consommation
+(!!) Find way to get a better raw signal quality
+ (!) Rework main bang detection (see temp.py for bug)
