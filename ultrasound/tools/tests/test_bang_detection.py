@@ -10,6 +10,7 @@ from scipy.signal import find_peaks
 
 density = 70
 
+
 def select_best_wavefront_in_batch(df, batch_column, wavefront_column):
     df2 = df.group_by("batchId").agg(pl.map_groups(exprs=["AcquisitionTime", "wavefront"], function=select_wavefront_and_time).alias("groupby"))
 
@@ -43,7 +44,8 @@ def main_bang_end_peaks(data):
 
 
 def test_bang_detection():
-    df = pd.read_csv("data/random/quality_bad_2.csv")
+    df = pd.read_csv("data/random/bugAlgo(4silos).csv")
+    df = df[df["LocationName"] == "marceldion-6325"].reset_index()
     raw = np.array(utils.str_raw_data_to_list(df["raw_data"][0]))
     bang_end_v2 = ua.detect_main_bang_v2(raw, 15, 1000, 10000, 20000)
     print(sum(raw) / len(raw))
@@ -122,7 +124,6 @@ def test_bang_detection():
     plt.legend()
     plt.show()
 
-    
     df = df[["raw_data", "samplingFrequency"]]
     df["raw_data"] = df.apply(lambda x: str(x["raw_data"]).replace(",", ";"), axis=1)
     df["minThreshold"] = 15
@@ -135,4 +136,11 @@ def test_bang_detection():
 
 if __name__ == "__main__":
     # test_bang_detection_polars()
+    df = pd.read_csv("data/random/1.csv")
+    data = df["raw_data"].values[range(0, len(df), 4)]
+    wf = ua.wavefront_empty_and_full_detection(data, 0.5, 10, 20000, 26894)
+    plt.plot(data)
+    plt.axvline(wf)
+    plt.show()
+    exit()
     test_bang_detection()

@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy import interpolate
 import scipy.signal as signal
+from scipy.signal import find_peaks
 import math
 import numpy as np
 from torchmetrics.image import sam
@@ -121,20 +122,36 @@ def is_signal_close_to_bang(data, main_bang_end_estimation, start_index, thresho
     return True
 
 
-def detect_main_bang_v2(data, min_threshold, window_size, max_bang_len, sample_rate):
-    #data = data[:-3]
+def is_silo_full(data, bang_end, ratio=0.05):  # 0.18 if we remove -> / len()
+    signal_before_bang = sum(data[:bang_end]) / len(data[:bang_end])
+    signal_after_bang = sum(data[bang_end:]) / len(data[bang_end:])
+    return signal_after_bang / signal_before_bang < ratio or bang_end > 200
+
+
+def detect_full_silo_bang_end(data, current_bang_end):
+    bang_start_index = next(i for i, d in enumerate(data) if d > 200 or d >= max(data))
+    neg_data = abs(np.array(data[bang_start_index:current_bang_end]) - 255)
+    peaks, proms = custom_find_peaks(neg_data)
+    if len(peaks) == 0:
+        return np.argmax(neg_data), 0, 127
+    max_prom_index = np.argmax(proms)
+    new_bang_end = peaks[max_prom_index] + bang_start_index
+    return new_bang_end, bang_start_index, max(proms)
+
+
+def detect_main_bang_v2(data, sample_rate, window_size=2000, max_bang_len=20000):
+    # data = data[:-3]
     conversion_factor = sample_rate / 1e6
     window_size = int(conversion_factor * window_size)
     max_bang_len = conversion_factor * max_bang_len
     step = window_size // 10
 
-    current_threshold = min_threshold
-    current_threshold = sum(data) / len(data)
+    current_threshold = max((sum(data) / len(data)) / 2, 5)
     bang_end = -1
 
     s = 0
     for i in range(window_size, len(data) - 1, step):
-        window = data[i - window_size:i + 1]
+        window = data[i - window_size : i + 1]
         s = sum(window)
         l = len(window)
         if (s / l) < current_threshold or i >= max_bang_len:
@@ -169,7 +186,7 @@ def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=800
         (5, int(2200 * conversion_factor)),
         (10, int(2600 * conversion_factor)),
         (20, int(3000 * conversion_factor)),
-        (31, int(4000 * conversion_factor))
+        (31, int(4000 * conversion_factor)),
     ]
 
     # Find closest pulse count from dict
@@ -182,22 +199,19 @@ def detect_main_bang_end(data, pulse_count, sample_rate=500000, max_bang_len=800
             min_difference = diff
 
     # Approximation of bang index from pulse count
-    bang_index = [pc[1]
-                  for pc in pulse_count_to_index if pc[0] == closest_pulse_count][0]
+    bang_index = [pc[1] for pc in pulse_count_to_index if pc[0] == closest_pulse_count][0]
 
     # Find the first minima following the approximation of bang index
     # to find the true end of the bang
     max_value_in_bang = max(data[:max_bang_len])
     # minima has to be less than this threshold to be considered as bang end
     first_min_threshold = 0.7
-    first_min_index = find_next_minimum_below_threshold(
-        data, bang_index, first_min_threshold * max_value_in_bang, max_bang_len)
+    first_min_index = find_next_minimum_below_threshold(data, bang_index, first_min_threshold * max_value_in_bang, max_bang_len)
 
     # Check if the signal is close to main bang or not
     if first_min_index < max_bang_len:
         threshold = max(data[first_min_index:]) * 0.4
-        is_signal_close = is_signal_close_to_bang(
-            data, first_min_index, max_bang_len, threshold)
+        is_signal_close = is_signal_close_to_bang(data, first_min_index, max_bang_len, threshold)
         if not is_signal_close:
             if data[max_bang_len] < threshold:
                 return max_bang_len
@@ -299,9 +313,9 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
     data = data[:-3]
     # Find end of bang
     if not bang_end:
-        bang_end = detect_main_bang_v2(data, 15, 1000, 10000, sample_rate)
+        bang_end = detect_main_bang_v2(data, sample_rate)
 
-    index_cutoff_value = int(0.95*len(data))
+    index_cutoff_value = int(0.95 * len(data))
 
     # Compute the threshold and the speed of sound based on the temperature
     threshold = threshold * max(data[bang_end:])
@@ -339,32 +353,76 @@ def wavefront(data, temperature, threshold, window_in_meters, pulse_count, sampl
     return wf_index_interpolated
 
 
+def wavefront_empty_and_full_detection(data, threshold, pulse_count, sample_rate, max_bin_index, bang_end=None, temperature=0, window_in_meters=100):
+    data = data[:-3]
+    # Find end of bang
+    if not bang_end:
+        bang_end = detect_main_bang_v2(data, sample_rate)
+
+    start_index = int(max_bin_index) if max_bin_index <= len(data) - 1 else len(data) - 1
+    end_index = int(max_bin_index + (6000 * sample_rate / 1e6))
+    if end_index >= len(data) - 1:
+        end_index = len(data) - 1
+    signal_after_max_bin = sum(data[start_index:end_index]) / max(data[bang_end:])
+
+    # Empty silo detection
+    max_index = np.argmax(data[bang_end:]) + bang_end
+    if signal_after_max_bin >= 20 or max_index >= max_bin_index:
+        return max_bin_index
+
+    # Full silo detection
+
+    if is_silo_full(data, bang_end):
+        new_bang_end, bang_start_index, _ = detect_full_silo_bang_end(data, bang_end)
+        wf = wavefront(data[bang_start_index:bang_end], temperature, threshold, window_in_meters, pulse_count, sample_rate, bang_end=new_bang_end - bang_start_index)
+        return wf
+
+    return wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate, bang_end=bang_end)
+
 
 def wavefront_empty_detection(data, threshold, pulse_count, sample_rate, max_bin_index, bang_end=None):
     # Find end of bang
     if not bang_end:
-        bang_end = detect_main_bang_v2(data, 15, 1000, 10000, sample_rate)
+        bang_end = detect_main_bang_v2(data, sample_rate)
 
-    start_index = int(max_bin_index) if max_bin_index <= len(data) - 1 else len(data) - 1;
-    end_index = int(max_bin_index + (6000 * sample_rate / 1e6));
+    start_index = int(max_bin_index) if max_bin_index <= len(data) - 1 else len(data) - 1
+    end_index = int(max_bin_index + (6000 * sample_rate / 1e6))
     if end_index >= len(data) - 1:
-        end_index = len(data) - 1;
+        end_index = len(data) - 1
     signal_after_max_bin = sum(data[start_index:end_index]) / max(data[bang_end:])
 
-    if signal_after_max_bin >= 25:
+    # Empty silo detection
+    max_index = np.argmax(data[bang_end:]) + bang_end
+    if signal_after_max_bin >= 25 or max_index >= max_bin_index:
         return max_bin_index
+
     return wavefront(data, 0, threshold, 20, pulse_count, sample_rate)
 
 
-def wavefront_with_window(signal, prev_values, prev_times, threshold, pulse_count, temperature, silo_data, density, window_width_meters=1, sample_rate=500000, max_days_before=2, alpha=0):
-    bang_end = detect_main_bang_end(signal, pulse_count, sample_rate)
+def wavefront_with_window(
+    signal,
+    prev_values,
+    prev_times,
+    threshold,
+    pulse_count,
+    temperature,
+    silo_data,
+    density,
+    window_width_meters=1,
+    sample_rate=20000,
+    max_days_before=2,
+    alpha=0,
+):
+    bang_end = detect_main_bang_v2(signal, sample_rate)
     # signal = np.array(signal)
     # signal[0:bang_end] = 0
+    print(prev_values)
     current_normal_wf = wavefront(signal, temperature, threshold, 20, pulse_count, sample_rate)
     if len(prev_values) > 1 and current_normal_wf - prev_values[-1] < -400:
+        print("allo")
         return current_normal_wf
     fill_index = 0
-    for i in range(len(prev_times)-1, 0, -1):
+    for i in range(len(prev_times) - 1, 0, -1):
         diff = prev_values[i] - prev_values[i - 1]
         if diff < -200:
             fill_index = i
@@ -372,12 +430,13 @@ def wavefront_with_window(signal, prev_values, prev_times, threshold, pulse_coun
     prev_values = prev_values[fill_index:]
     prev_times = prev_times[fill_index:]
     if (len(prev_values) != len(prev_times)) or (len(prev_values) < 5):
+        print("allo2")
         return current_normal_wf
 
     signal = np.array(signal)
     df = pd.DataFrame(data={"values": prev_values}, index=prev_times)
     df = df[df.index > df.index[-1] - pd.Timedelta(days=max_days_before)]
-    mean_consum = fpa.get_mean_consumption(df["values"].values, max_delta=-200)
+    mean_consum = fpa.get_mean_consumption(df["values"].values, max_pos_delta=-200)
     next_fill_pred = np.mean(df["values"].values[-3:]) + mean_consum
 
     # Transform window width in samples
@@ -390,10 +449,11 @@ def wavefront_with_window(signal, prev_values, prev_times, threshold, pulse_coun
 
     predicted_tof = max(0, min(next_fill_pred, len(signal)))
 
-    start_index = int(predicted_tof - window_in_samples / 2)
+    # start_index = int(predicted_tof - window_in_samples / 2)
+    start_index = int(prev_values[-1] - window_in_samples / 2)
     start_index = max(start_index, bang_end)
     end_index = start_index + window_in_samples
-    predicted_signal = np.copy(signal[max(0, start_index):min(end_index, len(signal))])
+    predicted_signal = np.copy(signal[max(0, start_index) : min(end_index, len(signal))])
 
     # Find the index at which the data is at the threshold inside the window
     abs_threshold = threshold * np.max(predicted_signal)
@@ -451,23 +511,16 @@ def wavefront_with_params(data, temperature, threshold, window_in_meters, pulse_
     conversion_factor = sample_rate / 1e6
     # Compute wavefront
     bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
-    wf = lowpass_wavefront(data, temperature, threshold, window_in_meters,
-                           pulse_count, sample_rate, cutoff_freq, no_data_threshold)
+    wf = lowpass_wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate, cutoff_freq, no_data_threshold)
 
     # Compute params
     max_value = max(data[bang_end:])
-    total_width_25 = find_width_at_threshold(
-        data[bang_end:], max_value * 0.25, bang_end, get_total_width=True)
-    total_width_50 = find_width_at_threshold(
-        data[bang_end:], max_value * 0.5, bang_end, get_total_width=True)
-    total_width_75 = find_width_at_threshold(
-        data[bang_end:], max_value * 0.75, bang_end, get_total_width=True)
-    above_25 = find_width_at_threshold(
-        data[bang_end:], max_value * 0.25, bang_end, get_total_width=False)
-    above_50 = find_width_at_threshold(
-        data[bang_end:], max_value * 0.5, bang_end, get_total_width=False)
-    above_75 = find_width_at_threshold(
-        data[bang_end:], max_value * 0.75, bang_end, get_total_width=False)
+    total_width_25 = find_width_at_threshold(data[bang_end:], max_value * 0.25, bang_end, get_total_width=True)
+    total_width_50 = find_width_at_threshold(data[bang_end:], max_value * 0.5, bang_end, get_total_width=True)
+    total_width_75 = find_width_at_threshold(data[bang_end:], max_value * 0.75, bang_end, get_total_width=True)
+    above_25 = find_width_at_threshold(data[bang_end:], max_value * 0.25, bang_end, get_total_width=False)
+    above_50 = find_width_at_threshold(data[bang_end:], max_value * 0.5, bang_end, get_total_width=False)
+    above_75 = find_width_at_threshold(data[bang_end:], max_value * 0.75, bang_end, get_total_width=False)
     area_under_curve = get_area_under_curve(data[bang_end:])
 
     # Assign params to return
@@ -514,17 +567,13 @@ def lowpass_wavefront(data, temperature, threshold, pulse_count, window_in_meter
     data = data[:-3]
 
     # Compute the normal wavefront
-    wf = wavefront(data, temperature, threshold, window_in_meters,
-                   pulse_count, sample_rate=sample_rate)
+    wf = wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate=sample_rate)
 
     # Compute the lowpass filter
-    b, a = signal.butter(2, cutoff_freq / (sample_rate / 2),
-                         'lowpass', analog=False)
+    b, a = signal.butter(2, cutoff_freq / (sample_rate / 2), "lowpass", analog=False)
     lowpass = signal.filtfilt(b, a, data)
-    lowpass_bang_end = detect_main_bang_end(
-        lowpass, pulse_count, sample_rate=sample_rate)
-    lowpass_wf = wavefront(lowpass, temperature, threshold,
-                           window_in_meters, pulse_count, sample_rate=sample_rate)
+    lowpass_bang_end = detect_main_bang_end(lowpass, pulse_count, sample_rate=sample_rate)
+    lowpass_wf = wavefront(lowpass, temperature, threshold, window_in_meters, pulse_count, sample_rate=sample_rate)
 
     # Check if there is signal after the main bang and choose the wavefront accordingly
     best_wf = lowpass_wf
@@ -535,8 +584,7 @@ def lowpass_wavefront(data, temperature, threshold, pulse_count, window_in_meter
 
 def before_wavefront(data, temperature, threshold, window_in_meters, pulse_count, threshold_before, sample_rate=500000):
     bang_end = detect_main_bang_end(data, pulse_count, sample_rate)
-    wf = wavefront(data, temperature, threshold,
-                   window_in_meters, pulse_count, sample_rate)
+    wf = wavefront(data, temperature, threshold, window_in_meters, pulse_count, sample_rate)
     threshold_before_abs = threshold_before * max(data[bang_end:])
     i = int(wf)
     current_val = data[i]
@@ -547,21 +595,28 @@ def before_wavefront(data, temperature, threshold, window_in_meters, pulse_count
 
 
 import statistics
+
+
 def signal_quality(data, sampling_rate=20000):
     data = data[:-3]
-    bang_end = detect_main_bang_v2(data, 0, 1000, 10000, sampling_rate)
+    bang_end = detect_main_bang_v2(data, sampling_rate)
+    quality_mod = 10
+    # if is_silo_full:
+    #     bang_end, _, max_prom = detect_full_silo_bang_end(data, bang_end)
+    #     quality_mod = (max_prom / 255) * 20
     conv = sampling_rate / 1e6
     stats = {}
     stats["m"] = round(max(data[bang_end:]), 2)
     normalized_data = [d / stats["m"] for d in data[bang_end:]]
     stats["mean"] = sum(normalized_data) / len(normalized_data)
-    stats["area"] = sum(normalized_data) * conv # normalized area under curve
+    stats["area"] = sum(normalized_data) * conv  # normalized area under curve
     stats["stdev"] = statistics.pstdev(normalized_data)
 
     stats["c1"] = round(max(normalized_data) / stats["mean"], 2)
-    stats["c2"] = ((1 / 25.5) * stats["m"] - stats["area"] * 5) + 50
-    return stats
+    stats["c2"] = ((1 / 25.5) * stats["m"] - stats["area"] * 5 - (max((bang_end / (10000 * conv)) - 0.5, 0) * 20)) + 40 + quality_mod
+    stats["quality"] = stats["c2"]
 
+    return stats
 
 
 def center_of_mass(data, pulse_count, sample_rate=500000):
@@ -579,21 +634,19 @@ def center_of_mass(data, pulse_count, sample_rate=500000):
     # Compute center of mass
     s = sum(data[bang_end:])
     if s > 0:
-        center = sum(
-            x * w for w, x in zip(data[bang_end:], indices[bang_end:])) / sum(data[bang_end:])
+        center = sum(x * w for w, x in zip(data[bang_end:], indices[bang_end:])) / sum(data[bang_end:])
     else:
         return len(data)
     return center
 
 
 def fill_nan(A):
-    '''
+    """
     interpolate to fill nan values
-    '''
+    """
     inds = np.arange(A.shape[0])
     good = np.where(np.isfinite(A))
-    f = interpolate.interp1d(
-        inds[good], A[good], bounds_error=False, kind="linear")
+    f = interpolate.interp1d(inds[good], A[good], bounds_error=False, kind="linear")
     B = np.where(np.isfinite(A), A, f(inds))
     return B
 
@@ -614,6 +667,63 @@ def enveloppe(data, pulse_count, sample_rate=500000):
     return new_data
 
 
+def custom_find_peaks(data):
+    # Find first derivative of signal
+    diffs = np.zeros(len(data) - 1, dtype=np.int64)
+    for i in range(0, len(data) - 1):
+        diffs[i] = data[i + 1] - data[i]
+
+    # Find points where the signal changes inflection
+    is_diff_pos = []
+    current_is_diff_pos = False
+    for d in diffs:
+        if d != 0:
+            current_is_diff_pos = True if d > 0 else False
+            break
+
+    for d in diffs:
+        if d > 0:
+            current_is_diff_pos = True
+        if d < 0:
+            current_is_diff_pos = False
+        is_diff_pos.append(current_is_diff_pos)
+
+    peaks = []
+    for i in range(0, len(is_diff_pos) - 1):
+        if not is_diff_pos[i + 1] and is_diff_pos[i]:
+            peak_value = data[i + 1]
+            j = i + 1
+            while data[j] == peak_value:
+                j -= 1
+            peaks.append(math.ceil((j + i + 1) / 2))
+
+    # Find each peak prominences
+    proms = []
+    for p in peaks:
+        # check left
+        peak_value = data[p]
+        i = p
+        while peak_value >= data[i]:
+            i -= 1
+            if i < 0:
+                i = 0
+                break
+        left = i
+
+        # check right
+        i = p
+        while peak_value >= data[i]:
+            i += 1
+            if i > len(data) - 1:
+                i = len(data) - 1
+                break
+        right = i
+        prom = min(peak_value - min(data[left:p]), peak_value - min(data[p:right]))
+        proms.append(prom)
+
+    return peaks, proms
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import json
@@ -622,29 +732,27 @@ if __name__ == "__main__":
     import tools.smoothing as rs
 
     print("Loading data...")
-    signal = pd.read_csv("data/random/errors1.csv",
-                         converters={"AcquisitionTime": pd.to_datetime})
+    signal = pd.read_csv("data/random/errors1.csv", converters={"AcquisitionTime": pd.to_datetime})
     print("Done.")
     print(signal.columns)
     for i in range(len(signal)):
         raw = json.loads(signal.iloc[i]["raw_data"])
         pc = signal.iloc[i]["pulseCount"]
         lowpass_wavefront(raw, 0, 0.5, pc, sample_rate=20000)
-        wf, params = wavefront_with_params(
-            raw, 0, 0.5, 10, 10, sample_rate=20000)
+        wf, params = wavefront_with_params(raw, 0, 0.5, 10, 10, sample_rate=20000)
     exit()
     centers = []
     centers_dist = []
     centers_weight = []
-    for i in track(range(len(signal)), ):
+    for i in track(
+        range(len(signal)),
+    ):
         raw_data = json.loads(signal.iloc[i]["rawdata"])
         cdm = center_of_mass(raw_data, 31)
         centers.append(cdm)
-        dist_offset = utils.tof_to_dist2(
-            cdm, signal.iloc[i]["temperature"]) * 2000
+        dist_offset = utils.tof_to_dist2(cdm, signal.iloc[i]["temperature"]) * 2000
         centers_dist.append(dist_offset)
-        centers_weight.append(dist_to_volume(
-            dist_offset / 1000, "allo", silo_data_17))
+        centers_weight.append(dist_to_volume(dist_offset / 1000, "allo", silo_data_17))
         if i in []:
             plt.plot(raw_data)
             plt.axvline(cdm, color="green")
@@ -656,27 +764,21 @@ if __name__ == "__main__":
     plt.plot(centers, label="Computed cdm")
     plt.legend(loc="best")
     plt.show()
-    plt.plot(signal["AcquisitionTime"], signal["CDM_distance"]
-             * 2, label="Current cdm")
-    plt.plot(signal["AcquisitionTime"],
-             signal["PGA_distance"], label="Current pga")
+    plt.plot(signal["AcquisitionTime"], signal["CDM_distance"] * 2, label="Current cdm")
+    plt.plot(signal["AcquisitionTime"], signal["PGA_distance"], label="Current pga")
     plt.plot(signal["AcquisitionTime"], centers_dist, label="Computed cdm")
     plt.legend(loc="best")
     plt.show()
     # plt.plot(data["AcquisitionTime"], (data["CDM_weight"] - 17.8) * 2, label="Current cdm")
-    filt = rs.generic_iir_filter(signal["PGA_weight"].values, rs.spike_filter, {
-        "maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
-    filt2 = rs.generic_iir_filter(centers_weight, rs.spike_filter, {
-        "maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
+    filt = rs.generic_iir_filter(signal["PGA_weight"].values, rs.spike_filter, {"maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
+    filt2 = rs.generic_iir_filter(centers_weight, rs.spike_filter, {"maximum_change_perc": 5, "number_of_changes": 2, "count": 0, "bin_max": 40})
 
-    loadcells = pd.read_csv("data/agco/v2/loadcells.csv",
-                            converters={"AcquisitionTime": pd.to_datetime})
+    loadcells = pd.read_csv("data/agco/v2/loadcells.csv", converters={"AcquisitionTime": pd.to_datetime})
     lc17 = loadcells[loadcells["LocationName"] == "MPass-10"]
 
     plt.plot(signal["AcquisitionTime"], filt, label="Current pga")
     plt.plot(signal["AcquisitionTime"], filt2, label="Computed cdm")
-    plt.plot(lc17["AcquisitionTime"],
-             lc17["LoadCellWeight_t"], label="loadcell")
+    plt.plot(lc17["AcquisitionTime"], lc17["LoadCellWeight_t"], label="loadcell")
     plt.legend(loc="best")
     plt.show()
     exit()
@@ -707,10 +809,8 @@ if __name__ == "__main__":
     for i in range(len(signal)):
         print(signal.loc[i, "PulseCount"])
         raw_data = np.array(json.loads(signal.loc[i, "Data"]))
-        bang_end = detect_main_bang_end(
-            raw_data.copy(), signal.loc[i, "PulseCount"], signal.loc[i, "SamplingFrequency"])
-        auto_gain = auto_gain_detection(
-            raw_data.copy(), bang_end, signal.loc[i, "SamplingFrequency"])
+        bang_end = detect_main_bang_end(raw_data.copy(), signal.loc[i, "PulseCount"], signal.loc[i, "SamplingFrequency"])
+        auto_gain = auto_gain_detection(raw_data.copy(), bang_end, signal.loc[i, "SamplingFrequency"])
         print(auto_gain)
         plt.subplot(2, 1, 1)
         plt.plot(raw_data)
@@ -718,10 +818,8 @@ if __name__ == "__main__":
         plt.axvline(signal.loc[i, "WavefrontIndex"], color="green")
 
         raw_data_2 = np.array(json.loads(signal.loc[i, "Data"]))[::2]
-        bang_end_2 = detect_main_bang_end(raw_data_2.copy(
-        ), signal.loc[i, "PulseCount"], signal.loc[i, "SamplingFrequency"] / 2)
-        auto_gain_2 = auto_gain_detection(
-            raw_data_2.copy(), bang_end_2, signal.loc[i, "SamplingFrequency"] / 2)
+        bang_end_2 = detect_main_bang_end(raw_data_2.copy(), signal.loc[i, "PulseCount"], signal.loc[i, "SamplingFrequency"] / 2)
+        auto_gain_2 = auto_gain_detection(raw_data_2.copy(), bang_end_2, signal.loc[i, "SamplingFrequency"] / 2)
 
         print(auto_gain_2)
         plt.subplot(2, 1, 2)
@@ -738,8 +836,7 @@ if __name__ == "__main__":
     plt.show()
     exit()
 
-    signal = np.genfromtxt(
-        'data/downsample_tests/test_input_pulsecount_31.csv', delimiter=',', skip_header=1)
+    signal = np.genfromtxt("data/downsample_tests/test_input_pulsecount_31.csv", delimiter=",", skip_header=1)
     bang_end = detect_main_bang_end(signal, 20)
     auto_gain = auto_gain_detection(signal, bang_end, signal_range=(0, 255))
     wf = wavefront(signal, 0, 0.5, 1.0, 31, 500000)

@@ -1,5 +1,13 @@
 import math
 import numpy as np
+import pandas as pd
+
+
+def run_data_on_multiple_batch(file, funcs: dict):
+    df = pd.read_csv(file)
+    df["raw_data"] = df.apply(lambda row: str_raw_data_to_list(row["raw_data"]), axis=1)
+
+    # df[df.groupby(['id'])['year'].transform(max) == df['year']]
 
 
 def select_silo(df, silo_name):
@@ -8,7 +16,7 @@ def select_silo(df, silo_name):
 
 
 def str_raw_data_to_list(raw_data, sep=","):
-    return list(map(int, raw_data.strip('][').replace('"', '').split(sep)))
+    return list(map(int, raw_data.strip("][").replace('"', "").split(sep)))
 
 
 agco_silo_data = {
@@ -38,20 +46,23 @@ def dist_to_volume_agco(dist, silo_data):
 
     roof_volume = math.pi / 3 * h_roof * (sd["TopOfConeRadius"] ** 2 + sd["TopOfRoofRadius"] ** 2 + (sd["TopOfConeRadius"] * sd["TopOfRoofRadius"]))
     cylinder_volume = math.pi * sd["TopOfConeRadius"] ** 2 * h_cylinder
-    hopper_volume = (math.pi / 3) * h_cone * (sd["TopOfConeRadius"] ** 2 + sd["BottomOfConeRadius"] ** 2
-                                              + sd["TopOfConeRadius"] * sd["BottomOfConeRadius"])
+    hopper_volume = (math.pi / 3) * h_cone * (sd["TopOfConeRadius"] ** 2 + sd["BottomOfConeRadius"] ** 2 + sd["TopOfConeRadius"] * sd["BottomOfConeRadius"])
     total_volume = roof_volume + cylinder_volume + hopper_volume
 
-    new_r1 = sd["TopOfConeRadius"] - (math.tan(math.radians(sd["ConeAngle"])) *
-                                      (h_cone - (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)))
+    new_r1 = sd["TopOfConeRadius"] - (
+        math.tan(math.radians(sd["ConeAngle"])) * (h_cone - (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset))
+    )
 
     volume_in_cylinder = math.pi * (sd["TopOfConeRadius"] ** 2) * ((h_cylinder + h_roof) - dist_offset) + hopper_volume
 
-    volume_in_cone = (math.pi / 3) * (new_r1 ** 2 + sd["BottomOfConeRadius"] ** 2
-                                      + new_r1 * sd["BottomOfConeRadius"]) * (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)
+    volume_in_cone = (
+        (math.pi / 3)
+        * (new_r1**2 + sd["BottomOfConeRadius"] ** 2 + new_r1 * sd["BottomOfConeRadius"])
+        * (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)
+    )
 
     new_r3 = dist_offset * math.tan(math.radians(sd["RoofAngle"])) + sd["TopOfRoofRadius"]
-    volume_in_roof = (math.pi / 3) * (new_r3 ** 2 + sd["TopOfConeRadius"] ** 2 + new_r3 * sd["TopOfConeRadius"]) * (h_roof - dist_offset)
+    volume_in_roof = (math.pi / 3) * (new_r3**2 + sd["TopOfConeRadius"] ** 2 + new_r3 * sd["TopOfConeRadius"]) * (h_roof - dist_offset)
 
     current_volume = None
     if dist_offset < h_roof:
@@ -137,12 +148,19 @@ def weight_to_tof(weight, silo_data, density, temp_celsius):
     if volume <= silo_data["ConeVolume"]:
         print(1)
         offset = silo_data["CylinderHeight"] + silo_data["ConeHeight"] - silo_data["SensorOffset"]
-        dist = offset - (((volume / silo_data["ConeVolume"] * ((silo_data["TopOfConeRadius"] ** 3) - (silo_data["BottomOfConeRadius"] ** 3)
-                                                               ) + silo_data["BottomOfConeRadius"] ** 3) ** 0.333333333) - silo_data["BottomOfConeRadius"]) * cotan(math.radians(silo_data["ConeAngle"]))
+        dist = offset - (
+            (
+                (
+                    volume / silo_data["ConeVolume"] * ((silo_data["TopOfConeRadius"] ** 3) - (silo_data["BottomOfConeRadius"] ** 3))
+                    + silo_data["BottomOfConeRadius"] ** 3
+                )
+                ** 0.333333333
+            )
+            - silo_data["BottomOfConeRadius"]
+        ) * cotan(math.radians(silo_data["ConeAngle"]))
     else:
         print(2)
-        dist = -(volume - silo_data["ConeVolume"]) / (math.pi * (silo_data["TopOfConeRadius"] ** 2)
-                                                      ) + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
+        dist = -(volume - silo_data["ConeVolume"]) / (math.pi * (silo_data["TopOfConeRadius"] ** 2)) + silo_data["CylinderHeight"] - silo_data["SensorOffset"]
 
     print(dist)
     tof = dist_to_tof(dist, temp_celsius)

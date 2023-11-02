@@ -3,10 +3,33 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import linear_model
+import tools.fill_prediction_agco as fpa
 
 from rich import print
 from warnings import simplefilter
-simplefilter(action='ignore', category=DeprecationWarning)
+
+simplefilter(action="ignore", category=DeprecationWarning)
+
+
+def conve(a):
+    return float(a.split(" ")[0])
+
+
+def test_prod_prediction():
+    df = pd.read_csv("data/random/pred_tests2.csv", converters={"AcquisitionTime": pd.to_datetime, "weight_t_BQual": conve})
+    pred_index = 1050
+
+    plt.plot(df["AcquisitionTime"], df["weight_t_BQual"])
+    next_pred = fpa.predict_next_fill(df["AcquisitionTime"].values[:pred_index], df["weight_t_BQual"].values[:pred_index], max_days_before=20, resample_hours=1)
+    print(next_pred[0])
+
+    if next_pred[0]:
+        plt.axvline(next_pred[0], linestyle="--")
+        plt.plot(
+            [df["AcquisitionTime"].values[pred_index], next_pred[0]], [df["weight_t_BQual"].values[pred_index], next_pred[1]], linestyle="--", color="orange"
+        )
+    plt.axvline(df["AcquisitionTime"].values[pred_index])
+    plt.show()
 
 
 def create_dataset(path):
@@ -56,7 +79,6 @@ def add_next_fill_index_to_dataset(data):
 
 
 def add_next_fill_to_dataset(data):
-
     import us.forecasting.algos as fore
 
     next_zero_dates = []
@@ -127,7 +149,6 @@ from tools.smoothing import linear_regression
 
 
 def predict_next_fill(time, values, max_regression_len=48):
-
     if len(values) < 7:
         # No prediction, not enough data points
         return np.datetime64("nat")
@@ -161,16 +182,16 @@ def predict_next_fill(time, values, max_regression_len=48):
     #    plt.axvline(fill)
     # plt.show()
     # exit()
-    current_fill_values = values[fills[-1]:]
-    current_fill_time = time[fills[-1]:]
+    current_fill_values = values[fills[-1] :]
+    current_fill_time = time[fills[-1] :]
 
     if len(current_fill_values) < 7:
         if len(fills) > 1:
             # Going backwards, find first fill that contains more than N data points
             found = False
             for i in range(len(fills) - 1):
-                prev_values = values[fills[-i - 2]:fills[-i - 1]]
-                prev_time = time[fills[-i - 2]:fills[-i - 1]]
+                prev_values = values[fills[-i - 2] : fills[-i - 1]]
+                prev_time = time[fills[-i - 2] : fills[-i - 1]]
                 print(len(values), fills[-i - 2], fills[-i - 1])
 
                 if len(prev_values) >= 7:
@@ -185,7 +206,7 @@ def predict_next_fill(time, values, max_regression_len=48):
             next_xs = []
             next_ys = []
             for i in range(200):
-                next_x = (time[-1] + i * time_step)
+                next_x = time[-1] + i * time_step
                 fill_level = m * next_x + c + values[-1]
                 next_xs.append(next_x)
                 next_ys.append(fill_level)
@@ -268,6 +289,9 @@ def predict_next_fill(time, values, max_regression_len=48):
 
 
 if __name__ == "__main__":
+    test_prod_prediction()
+    exit()
+
     data = read_data("data/isoporc/dataset_fill.csv")
     data = data.set_index("AcquisitionTime")
 
@@ -306,12 +330,13 @@ if __name__ == "__main__":
     """
 
     import tools.fill_prediction as fp
+
     preds = []
     for i in range(len(data)):
         if np.isnan(data["weight_t"][i]):
             preds.append(np.datetime64("nat"))
             continue
-        next_fill_date = fp.predict_next_fill(data.index[:i + 1], data["weight_t"][:i + 1])
+        next_fill_date = fp.predict_next_fill(data.index[: i + 1], data["weight_t"][: i + 1])
         print(i, next_fill_date)
         preds.append(next_fill_date)
     data["prediction"] = preds

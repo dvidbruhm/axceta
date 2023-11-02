@@ -12,8 +12,16 @@ La fin du bang est calculée en glissant une fenêtre de points et en calculant 
 ## Front d'onde
 En rose, le front d'onde afin de trouver le pic principal qui correspond au retour de l'onde ultrason qui frappe la moulée dans le silo.
 
-Le front d'onde est simplement le point auquel le signal est à la mi hauteur du maximum (le maximum excluant le bang du début). Par contre, comme il a été remarqué qu'il y a parfois un plus petit pic avant le pic principal du retour (qui dépend possiblement de la géométrie du silo ou bien de moulée qui serait restée collé),
-seulement une fenêtre d'une certaine largeur autour du maximum est considérée afin d'ignorer ces plus petits pics qui peuvent faire "accroché" le front d'onde trop tôt.
+En premier, deux conditions sont vérifiées: 
+1. Est-ce que le silo est vide? 
+    - Si la quantité de signal autour et après le fond du silo est au dessus d'un certain seuil, le silo est considéré vide.
+2. est-ce que le silo est plein?
+    - Si le ratio (Quantité de signal avant la fin du bang / Quantité de signal après la fin du bang) est au dessus d'un certain seuil, le silo est considéré plein et nous allons chercher le front d'onde avant la fin du bang
+3. Si les deux conditions sont fausses, nous cherchons le front d'onde normalement de la manière suivante:
+    - Le front d'onde est simplement le point auquel le signal est à la mi hauteur du maximum (le maximum excluant le bang du début). Par contre, comme il a été remarqué qu'il y a parfois un plus petit pic avant le pic principal du retour (qui dépend possiblement de la géométrie du silo ou bien de moulée qui serait restée collé),
+    seulement une fenêtre d'une certaine largeur autour du maximum est considérée afin d'ignorer ces plus petits pics qui peuvent faire "accroché" le front d'onde trop tôt.
+
+
 ![image](3.png)
 
 ## Qualité de l'onde
