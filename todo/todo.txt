@@ -1,9 +1,10 @@
      Add error bars to wavefront (maybe based on width of signal, or with different threshold i.e. 0.25, 0.5 and 0.75)
      Check if possible to detect outliers with prediction tendency
- (!) Fit multi step (sigmoid) function to agco data
- (!) Proof of concept wavefront basee sur la fenetre basé sur la prédiction de la consommation
+     Fit multi step (sigmoid) function to agco data
+     Proof of concept wavefront basee sur la fenetre basé sur la prédiction de la consommation
 (!!) Essayer: comparer l'onde du moment avec la précédente pour voir si on doit regarder proche de la précédente ou non (dans le cas d'un remplissage)
 (!!) Essayer: précédente -> is empty/full? si oui, il y a plus de chance d'être empty/full, donc trouver un critère pour lequel on est 100% sur d'être empty/full
 (!!) Check if wierd bang shape relates to low quality response
 (!!) Quality: try lowpass or peak fitting, and compare to raw signal
 (!!) Quality: try bell curve fitting/lowpass and check the max/width of peak 
+ (!) Recreate old raspy behaviour (lowest to strongest config) in experimentation

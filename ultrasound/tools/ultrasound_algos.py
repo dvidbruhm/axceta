@@ -122,7 +122,7 @@ def is_signal_close_to_bang(data, main_bang_end_estimation, start_index, thresho
     return True
 
 
-def is_silo_full(data, bang_end, ratio=0.05):  # 0.18 if we remove -> / len()
+def is_silo_full(data, bang_end, ratio=0.04):  # 0.18 if we remove -> / len()
     signal_before_bang = sum(data[:bang_end]) / len(data[:bang_end])
     signal_after_bang = sum(data[bang_end:]) / len(data[bang_end:])
     return signal_after_bang / signal_before_bang < ratio or bang_end > 200
@@ -667,7 +667,7 @@ def enveloppe(data, pulse_count, sample_rate=500000):
     return new_data
 
 
-def custom_find_peaks(data):
+def custom_find_peaks(data, min_prom=0):
     # Find first derivative of signal
     diffs = np.zeros(len(data) - 1, dtype=np.int64)
     for i in range(0, len(data) - 1):
@@ -720,6 +720,11 @@ def custom_find_peaks(data):
         right = i
         prom = min(peak_value - min(data[left:p]), peak_value - min(data[p:right]))
         proms.append(prom)
+
+    inds = np.argwhere(np.array(proms) >= min_prom).squeeze()
+    if isinstance(inds, list):
+        peaks = list(np.array(peaks)[inds])
+        proms = list(np.array(proms)[inds])
 
     return peaks, proms
 

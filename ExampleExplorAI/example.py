@@ -42,7 +42,7 @@ def rename(df):
     df["siloHeight"] = df["maxBinDistance"]
     df["trueWeight"] = df["LcValue_t"]
     df["trueWavefront"] = df["Lc_ToF"] / df["decimationFactor"]
-    df = df.drop(["LcValue_t", "Lc_ToF", "maxBinIndex", "maxBinDistance"], axis=1)
+    df = df.drop(["LcValue_t", "Lc_ToF", "maxBinDistance"], axis=1)
     return df
 
 
@@ -60,11 +60,3 @@ if __name__ == "__main__":
     print(f"{len(total_df)}")
 
     total_df.to_csv(OUTPUT_FOLDER + "dataset.csv", index=False)
-
-    # filtered_df = df.loc[df.groupby("batchId")["signalQuality"].idxmax()].sort_values(by=["AcquisitionTime"])
-    # plt.plot(filtered_df["AcquisitionTime"], filtered_df["trueWavefront"], label="true")
-    # plt.plot(filtered_df["AcquisitionTime"], filtered_df["sensorWavefront"], label="sensor")
-    # plt.legend()
-    # plt.show()
-    #
-    # exit()

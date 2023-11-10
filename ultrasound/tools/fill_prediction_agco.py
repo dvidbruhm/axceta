@@ -49,10 +49,6 @@ def predict_next_fill(times, values, resample_hours=4, tons_fill_threshold=0, ma
     # Resample the data to resample_hours (4) instead of 1 hour by taking the mean
     # might need to find a function/library to resample, or implement it
     resampled = df.resample(f"{resample_hours}H").mean().dropna(subset=["values"])
-    import matplotlib.pyplot as plt
-
-    plt.plot(resampled)
-
     # Check if silo is active by passing only data the is not older than nb_hours_silo_inactive (similar as above)
     silo_active = is_silo_active(resampled[resampled.index > resampled.index[-1] - pd.Timedelta(hours=nb_hours_silo_inactive)].values)
     if not silo_active:
@@ -69,7 +65,9 @@ def predict_next_fill(times, values, resample_hours=4, tons_fill_threshold=0, ma
     #   start with the last value in the values array, add the mean consum (which is negative) and add the
     #   next time (which is the previous time + the resample_hours), and repeat
     pred_times = [resampled.index[-1]]
-    pred_values = [resampled["values"].values[-min(len(resampled["values"].values), 3) : -1].mean()]
+    pred_values = [resampled["values"].values[-min(len(resampled["values"].values), 3) :].mean()]
+    print(resampled["values"].values)
+    print(resampled["values"].values[-min(len(resampled["values"].values), 3) :])
     while pred_values[-1] > 0:
         pred_values.append(pred_values[-1] + mean_consum)
         pred_times.append(pred_times[-1] + pd.Timedelta(hours=resample_hours))

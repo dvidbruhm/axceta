@@ -49,17 +49,11 @@ def dist_to_volume_agco(dist, silo_data):
     hopper_volume = (math.pi / 3) * h_cone * (sd["TopOfConeRadius"] ** 2 + sd["BottomOfConeRadius"] ** 2 + sd["TopOfConeRadius"] * sd["BottomOfConeRadius"])
     total_volume = roof_volume + cylinder_volume + hopper_volume
 
-    new_r1 = sd["TopOfConeRadius"] - (
-        math.tan(math.radians(sd["ConeAngle"])) * (h_cone - (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset))
-    )
+    new_r1 = sd["TopOfConeRadius"] - (math.tan(math.radians(sd["ConeAngle"])) * (h_cone - (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)))
 
     volume_in_cylinder = math.pi * (sd["TopOfConeRadius"] ** 2) * ((h_cylinder + h_roof) - dist_offset) + hopper_volume
 
-    volume_in_cone = (
-        (math.pi / 3)
-        * (new_r1**2 + sd["BottomOfConeRadius"] ** 2 + new_r1 * sd["BottomOfConeRadius"])
-        * (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)
-    )
+    volume_in_cone = (math.pi / 3) * (new_r1**2 + sd["BottomOfConeRadius"] ** 2 + new_r1 * sd["BottomOfConeRadius"]) * (sd["HeightGroundToTopOfBin"] - sd["HeightGroundToBin"] - dist_offset)
 
     new_r3 = dist_offset * math.tan(math.radians(sd["RoofAngle"])) + sd["TopOfRoofRadius"]
     volume_in_roof = (math.pi / 3) * (new_r3**2 + sd["TopOfConeRadius"] ** 2 + new_r3 * sd["TopOfConeRadius"]) * (h_roof - dist_offset)
@@ -125,6 +119,51 @@ def temp_to_sound_speed(temp_celsius: float) -> float:
     return sound_speed
 
 
+# ---
+def compute_sound_speed(temp_celsius: float) -> float:
+    zero_c_kelvin = 273.15
+    temp_kelvin = temp_celsius + zero_c_kelvin
+    sound_speed = 20.02 * np.sqrt(temp_kelvin)
+    return sound_speed
+
+
+def compute_index_from_distance(distance, temperature, sampling_frequency):
+    sound_speed = compute_sound_speed(temperature)
+    index = distance / sound_speed * sampling_frequency * 2
+    return index
+
+    # var soundTravelTimeSeconds =
+    #     (double)waveformIndex / (double)samplingFreqHz.GetValueOrDefault(DefaultSamplingFrequencyHz);
+    #
+    # var soundTravelTimeBeforeReboundSeconds = soundTravelTimeSeconds / 2;
+    # var distance = soundTravelTimeBeforeReboundSeconds * speedOfSoundMeterPerSecond;
+    #
+    # // Convert to mm as integer
+    # return (uint)Math.Round(distance * 1000.0);
+
+
+def compute_distance(index, temperature, sampling_frequency):
+    sound_speed = compute_sound_speed(temperature)
+    distance = (index / sampling_frequency / 2) * sound_speed
+    # Convert to mm
+    return distance * 1000
+
+
+def compute_signal_quality(data, sampling_frequency):
+    data = data[:-3]
+    bang_end = detect_main_bang_v2(data, sampling_frequency)
+    conv = sampling_frequency / 1e6
+    stats = {}
+    stats["max"] = round(int(max(data[bang_end:])), 2)
+    normalized_data = [d / stats["max"] for d in data[bang_end:]]
+    stats["area"] = sum(normalized_data) * conv  # normalized area under curve
+    stats["quality"] = ((1 / 25.5) * stats["max"] - stats["area"] * 5) + 50
+    return stats["quality"]
+
+
+# ---
+
+
 def dist_to_tof(dist, temp_celsius):
     sound_speed = temp_to_sound_speed(temp_celsius)
     tof = dist * 2 / (sound_speed * 1e-6)
@@ -148,16 +187,7 @@ def weight_to_tof(weight, silo_data, density, temp_celsius):
     if volume <= silo_data["ConeVolume"]:
         print(1)
         offset = silo_data["CylinderHeight"] + silo_data["ConeHeight"] - silo_data["SensorOffset"]
-        dist = offset - (
-            (
-                (
-                    volume / silo_data["ConeVolume"] * ((silo_data["TopOfConeRadius"] ** 3) - (silo_data["BottomOfConeRadius"] ** 3))
-                    + silo_data["BottomOfConeRadius"] ** 3
-                )
-                ** 0.333333333
-            )
-            - silo_data["BottomOfConeRadius"]
-        ) * cotan(math.radians(silo_data["ConeAngle"]))
+        dist = offset - (((volume / silo_data["ConeVolume"] * ((silo_data["TopOfConeRadius"] ** 3) - (silo_data["BottomOfConeRadius"] ** 3)) + silo_data["BottomOfConeRadius"] ** 3) ** 0.333333333) - silo_data["BottomOfConeRadius"]) * cotan(math.radians(silo_data["ConeAngle"]))
     else:
         print(2)
         dist = -(volume - silo_data["ConeVolume"]) / (math.pi * (silo_data["TopOfConeRadius"] ** 2)) + silo_data["CylinderHeight"] - silo_data["SensorOffset"]

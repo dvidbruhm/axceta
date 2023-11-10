@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -51,11 +52,23 @@ def generate_wavefront_with_empty_detection_tests(file):
 
 def generate_fill_prediction_tests(file):
     df = pd.read_csv(file, converters={"AcquisitionTime": pd.to_datetime, "raw_data": utils.str_raw_data_to_list})
+    df["quality"] = df.apply(lambda row: ua.signal_quality(row["raw_data"])["quality"], axis=1)
+    df = df.loc[df.groupby("batchId")["quality"].idxmax()].sort_values(by=["AcquisitionTime"]).reset_index()
 
-    for i in [50, 100, 150, 200]:
-        times = df["AcquisitionTimes"]
+    d1, d2, d3 = [], [], []
+    for i in [850, 900, 920, 960, 1000]:
+        times = df["AcquisitionTime"].values[800:i]
+        values = df["sensor_weight"].values[800:i]
+        predicted_time, _ = fpa.predict_next_fill(times, values, resample_hours=1)
+        d1.append([str(t) for t in times])
+        d2.append(list(values))
+        d3.append(str(predicted_time))
+    json_res = []
+    for i in range(len(d1)):
+        json_res.append({"acquisitionTimes": d1[i], "values": d2[i], "predictedTime": d3[i]})
 
-    fpa.predict_next_fill
+    with open("data/csharp_tests/EmptySiloPredictionTestData.json", "w", encoding="utf-8") as f:
+        json.dump(json_res, f, ensure_ascii=False, indent=4)
 
     # json_res = []
     # for i in range(len(d1)):
@@ -80,27 +93,30 @@ def multiple_files_tests(files, generate_func, output_file, index=False, drop=Fa
 
 
 if __name__ == "__main__":
-    # Bang end detection test data
-    multiple_files_tests(
-        [
-            "data/random/Paquette7-2.csv",
-            "data/random/beaudry-1-4.csv",
-            "data/random/small_silo_full.csv",
-            "data/random/Paquette11-6310.csv",
-            "data/random/Paquette4-9.csv",
-        ],
-        generate_bang_detection_tests,
-        "data/csharp_tests/BangEndTestData.csv",
-    )
+    # # Bang end detection test data
+    # multiple_files_tests(
+    #     [
+    #         "data/random/Paquette7-2.csv",
+    #         "data/random/beaudry-1-4.csv",
+    #         "data/random/small_silo_full.csv",
+    #         "data/random/Paquette11-6310.csv",
+    #         "data/random/Paquette4-9.csv",
+    #     ],
+    #     generate_bang_detection_tests,
+    #     "data/csharp_tests/BangEndTestData.csv",
+    # )
+    #
+    # # Wavefront tests
+    # multiple_files_tests(
+    #     ["data/random/small_silo_full.csv", "data/random/Paquette11-6310.csv", "data/random/Paquette4-9.csv"],
+    #     generate_wavefront_tests,
+    #     "data/csharp_tests/DistanceComputerTestData.csv",
+    #     index=True,
+    #     drop=True,
+    # )
+    #
+    # # Wavefront with empty detection tests
+    # multiple_files_tests(["data/paquette/Paquette2-6.csv"], generate_wavefront_with_empty_detection_tests, "data/csharp_tests/DistanceComputerEmptySiloTestData.csv", index=True)
 
-    # Wavefront tests
-    multiple_files_tests(
-        ["data/random/small_silo_full.csv", "data/random/Paquette11-6310.csv", "data/random/Paquette4-9.csv"],
-        generate_wavefront_tests,
-        "data/csharp_tests/DistanceComputerTestData.csv",
-        index=True,
-        drop=True,
-    )
-
-    # Wavefront with empty detection tests
-    multiple_files_tests(["data/paquette/Paquette2-6.csv"], generate_wavefront_with_empty_detection_tests, "data/csharp_tests/DistanceComputerEmptySiloTestData.csv", index=True)
+    # Empty silo prediction
+    generate_fill_prediction_tests("data/long_series/beaudry-1-4.csv")

@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import tools.utils as utils
 import statistics
 
+import tools.batch_algos as ba
+
 
 def half_max_peak_width(data):
     m = max(data)
@@ -22,153 +24,126 @@ def half_max_peak_width(data):
     return width
 
 
-
-def signal_quality(data):
-    # Standard devitation
-    # max
-    # Area Under Curve
-    # mean
-    #
-    # max / mean?
-    # max / Area under Curve?
-    # Half peak width of max peak?
-
-    conv = 20000 / 1e6
-    stats = {}
-    stats["m"] = round(max(data), 2)
-    normalized_data = [d / stats["m"] for d in data]
-    stats["mean"] = sum(normalized_data) / len(normalized_data)
-    stats["area"] = sum(normalized_data) * conv # normalized area under curve
-    print(len(normalized_data))
-    print(sum(np.ones_like(np.array(normalized_data))) * conv)
-    stats["stdev"] = statistics.pstdev(normalized_data)
-    stats["peak_width"] = half_max_peak_width(data)
-
-    stats["c1"] = round(max(normalized_data) / stats["mean"], 2)
-    stats["c2"] = ((1 / 25.5) * stats["m"] - stats["area"] * 5) + 50
-
-    # if max(data) < 15:
-    #     stats["c1"], stats["c2"] = 0, 0
-
-    # print(stats["m"], stats["mean"], stats["area"], stats["stdev"], stats["c2"])
-    # plt.plot(data)
-    # plt.show()
-    return stats
-
-
-
-def process_batch(batch):
-    wfs = []
-    cloud_qualities = []
-    qualities = []
-    cloud_wfs = []
-    bang_ends = []
-    stats = []
-    after_bin_maxs = []
-    for i in range(len(batch)):
-        row = batch.iloc[i]
-        try:
-            int(row["config"])
-        except ValueError:
-            pass
-        else:
-            wfs = []
-            break
-        raw_data = utils.str_raw_data_to_list(row["raw_data"])
-        wf = ua.wavefront(raw_data, row["temperature"], 0.5, 20,
-                          row["pulseCount"], sample_rate=row["samplingFrequency"])
-        wfs.append(wf)
-        signal_quality(raw_data[ua.detect_main_bang_v2(raw_data, 15, 1000, 10000, 20000):])
-
-        cloud_quality = row["maxSignal"] / row["signalArea"] * 100
-        bang_ends.append(ua.detect_main_bang_v2(raw_data, 15, 1000, 10000, 20000))
-        bang_ends.append(ua.detect_main_bang_v2(raw_data, 15, 1000, 10000, 20000))
-        cloud_qualities.append(row["WaveformQuality"])
-        cloud_wfs.append(row["wavefront"])
-
-        bang_end = ua.detect_main_bang_v2(raw_data, 15, 1000, 10000, 20000)
-        stats.append(signal_quality(raw_data[bang_end:]))
-        q = stats[-1]["c2"]
-        qualities.append(q)
-
-        after_bin = sum(raw_data[row["maxBinIndex"]:]) / len(raw_data[row["maxBinIndex"]:]) * 10
-        after_bin_maxs.append(after_bin)
-
-    if not len(wfs):
-        return None, None, None
-
-    batch["local_wf"] = wfs
-    # batch["bang_end"] = bang_ends
-    batch["quality"] = qualities
-    batch["stats"] = stats
-    best_quality_index = np.argmax(qualities)
-    new_best_wf = wfs[best_quality_index]
-    best_cloud_index = np.argmax(cloud_qualities)
-    cloud_best_wf = cloud_wfs[best_cloud_index]
-
-    return batch, cloud_best_wf, new_best_wf, after_bin_maxs[best_quality_index]
-
-
 def display_batch(batch):
     sorted_batch = batch.sort_values(by=["quality"], ascending=False)
     for i in range(len(batch)):
         row = sorted_batch.iloc[i]
-        raw_data = utils.str_raw_data_to_list(row["raw_data"])
+        raw_data = row["raw_data"]
         plt.subplot(len(batch), 1, i + 1)
         plt.plot(raw_data, label="Signal")
-        plt.axvline(row["local_wf"], linestyle="--", label="Local wf", color="blue")
-        plt.axvline(row["wavefront"], linestyle="--", label="Cloud wf", color="green")
-        # plt.axvline(row["bang_end"], label="Bang end", color="red")
+        plt.axvline(row["wavefront"], linestyle="--", label="wf", color="green")
+        plt.axvline(row["bang_end"], label="Bang end", color="red")
         plt.axvline(row["maxBinIndex"], color="black")
         plt.ylabel(f'{row["config"]}')
-        plt.text(0.5 * len(raw_data), 0.5 * max(raw_data), row["quality"])
-        plt.text(0.5 * len(raw_data), 0.4 * max(raw_data), row["WaveformQuality"])
-        plt.text(0.5 * len(raw_data), 0.3 * max(raw_data), row["stats"]["area"])
+
+        x, y = range(len(raw_data[row["bang_end"] :])), raw_data[row["bang_end"] :]
+        gmodel = Model(gaussian)
+        amp, cen, wid = max(y), np.argmax(y), 10
+        result = gmodel.fit(y, x=x, amp=amp, cen=cen, wid=wid)
+        plt.plot([i + row["bang_end"] for i in x], result.best_fit, "--", color="orange")
+
+        plt.text(0.5 * len(raw_data), 0.5 * max(raw_data), row["q1"])
+        plt.text(0.5 * len(raw_data), 0.4 * max(raw_data), f"{row['q2']} - {result.params['amp'].value} - {result.params['wid'].value}")
+        plt.text(0.5 * len(raw_data), 0.3 * max(raw_data), row["q3"])
         plt.legend()
+
     plt.show()
 
 
-def process_dataset(file):
-    df = pd.read_csv(file)
-    #df = utils.select_silo(df, "Avinor-1484A")
-    print(df.columns)
-    if "latest_Algo" in df.columns:
-        df["wavefront"] = df["WavefrontIndex"]
+from numpy import exp, pi, sqrt
+from lmfit import Model
+import time
 
-    batch_ids = df["batchId"].unique()
-    cloud_wfs = []
-    new_wfs = []
-    after_bins = []
-    #lc = []
-    for i, batch_id in enumerate(batch_ids):
-        print(f"Batch {i} - {batch_id}")
-        batch = df[df["batchId"] == batch_id]
-        batch, cloud_wf, new_wf, after_bin = process_batch(batch)
-        if cloud_wf and new_wf:
-            if i > 0:
-                display_batch(batch)
-            cloud_wfs.append(cloud_wf)
-            new_wfs.append(new_wf)
-            after_bins.append(after_bin)
-            #lc.append(batch["LC_ToF"].iloc[0] / 50)
 
-    plt.plot(cloud_wfs, label="cloud")
-    plt.plot(new_wfs, label="Wavefront")
-    # plt.plot(np.array(after_bins), label="After bin max signal")
-    # wf_bin = [wf if ab < 100 else max(new_wfs) for wf, ab in zip(new_wfs, after_bins)]
-    # plt.plot(wf_bin, label="Wf bin")
-    # plt.plot(lc, label="Loadcell wavefront")
-    # plt.axhline(300, linestyle="--", color="black")
+def gaussian(x, amp, cen, wid):
+    """1-d gaussian: gaussian(x, amp, cen, wid)"""
+    return (amp / (sqrt(2 * pi) * wid)) * exp(-((x - cen) ** 2) / (2 * wid**2))
+
+
+def quality3(data, i, sample_rate=20000):
+    data = data[:-3]
+    bang_end = ua.detect_main_bang_v2(data, sample_rate)
+    x, y = np.array(range(len(data[bang_end:]))), np.array(data[bang_end:])
+
+    peaks, proms = ua.custom_find_peaks(y, min_prom=5)
+    if len(peaks) == 0:
+        return 0
+
+    quality = max(y) / ((max(proms) - np.mean(proms)) + len(peaks))
+    return quality * 100
+
+    print(peaks, proms)
+    plt.plot(x, y)
+    plt.plot(x[peaks], y[peaks], "o")
+    plt.show()
+    exit()
+
+
+def quality2(data, i, sample_rate=20000):
+    data = data[:-3]
+    bang_end = ua.detect_main_bang_v2(data, sample_rate)
+    x, y = range(len(data[bang_end:])), data[bang_end:]
+
+    gmodel = Model(gaussian)
+    amp, cen, wid = max(y), np.argmax(y), 10
+    result = gmodel.fit(y, x=x, amp=amp, cen=cen, wid=wid)
+    if np.mean(result.best_fit) < 0.1:
+        return 0
+
+    # error
+    a = result.best_fit > result.best_fit.max() * 0.2
+    # try:
+    first, last = np.nonzero(a)[0][0], np.nonzero(a)[0][-1]
+    # except:
+    #     plt.plot(x, y, label="data")
+    #     plt.plot(x, result.init_fit, "--", label="init")
+    #     plt.plot(x, result.best_fit, "--", label="best")
+    #     plt.plot(x, +result.best_fit)
+    #     plt.legend()
+    #     plt.show()
+
+    diff = y - result.best_fit
+    err_list = sum([0 if v < 0 else v for v in diff[first:last]])
+    err = 100 * max(y) / ((err_list / 10) + (result.params["wid"].value)) if err_list > 0 else np.inf
+
+    # plt.plot(x, y, label="data")
+    # plt.plot(x, result.init_fit, "--", label="init")
+    # plt.plot(x, result.best_fit, "--", label="best")
+    # plt.plot(x, +result.best_fit)
+    # plt.axvline(first)
+    # plt.axvline(last)
+    # plt.legend()
+    # plt.show()
+
+    return err
+
+
+def test_qualities():
+    df = pd.read_csv("data/random/test_quality3.csv", converters={"AcquisitionTime": pd.to_datetime, "raw_data": utils.str_raw_data_to_list}, nrows=1000)
+    df["bang_end"] = df.apply(lambda row: ua.detect_main_bang_v2(row["raw_data"], row["samplingFrequency"]), axis=1)
+    df["wavefront"] = df.apply(lambda row: ua.wavefront_empty_and_full_detection(row["raw_data"], 0.5, row["pulseCount"], row["samplingFrequency"], row["maxBinIndex"]), axis=1)
+    df["q1"] = df.apply(lambda row: ua.signal_quality(row["raw_data"])["quality"], axis=1)
+    # df["q2"] = df.apply(lambda row: quality2(row["raw_data"], row.name), axis=1)
+    # df["q3"] = df.apply(lambda row: quality3(row["raw_data"], row.name), axis=1)
+    #
+    df_q1 = df.loc[df.groupby("batchId")["q1"].idxmax()].sort_values(by=["AcquisitionTime"]).reset_index()
+    # df_q2 = df.loc[df.groupby("batchId")["q2"].idxmax()].sort_values(by=["AcquisitionTime"]).reset_index()
+    # df_q3 = df.loc[df.groupby("batchId")["q3"].idxmax()].sort_values(by=["AcquisitionTime"]).reset_index()
+    plt.plot(df_q1["wavefront"], label="q1")
+    # plt.plot(df_q2["wavefront"], label="q2")
+    # plt.plot(df_q3["wavefront"], label="q3", color="green")
+    # plt.plot(df_q3[df_q3["q3"] > 75]["wavefront"], "x", label="q3 > 80", color="green")
+    # plt.plot(df_q2["q2"], "--", alpha=0.2, label="qual2")
+    # plt.plot(df_q3["q3"], "--", alpha=0.2, label="qual3")
     plt.legend()
     plt.show()
 
+    for i, id in enumerate(df["batchId"].unique()):
+        if i in list(range(40, 60)):
+            batch = df[df["batchId"] == id].reset_index()
+            ba.is_silo_empty(batch.to_dict(orient="records"))
+            # display_batch(batch)
+
 
 if __name__ == "__main__":
-    d = [64, 0, 0, 0, 23, 87, 152, 202, 236, 223, 146, 147, 175, 200, 216, 222, 221, 216, 217, 224, 234, 245, 254, 255, 255, 255, 255, 250, 230, 195, 157, 126, 103, 104, 122, 137, 134, 109, 85, 109, 151, 190, 221, 243, 255, 255, 255, 255, 255, 255, 249, 223, 191, 163, 139, 124, 113, 98, 86, 72, 54, 43, 49, 64, 76, 78, 77, 73, 81, 92, 99, 96, 81, 54, 44, 55, 73, 88, 96, 95, 85, 69, 52, 37, 32, 33, 37, 41, 42, 42, 40, 40, 41, 43, 45, 46, 45, 44, 43, 42, 42, 41, 41, 40, 40, 39, 37, 34, 31, 29, 28, 27, 27, 27, 27, 28, 29, 31, 32, 33, 34, 34, 35, 35, 35, 35, 35, 34, 33, 32, 31, 29, 27, 25, 22, 20, 18, 16, 15, 13, 12, 12, 11, 10, 9, 8, 8, 8, 7, 7, 7, 6, 6, 5, 5, 4, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 6, 18, 19, 29, 41, 32, 24, 31, 27, 35, 43, 49, 44, 43, 48, 48, 52, 45, 36, 35, 28, 23, 40, 53, 49, 45, 33, 40, 34, 41, 35, 34, 31, 27, 28, 27, 33, 41, 35, 37, 42, 34, 25, 18, 12, 9, 6, 4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 3, 2, 2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 1, 1, 1, 2, 2, 2, 2, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 2, 1, 1, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2]
-    d = d[ua.detect_main_bang_v2(d, 15, 1000, 10000, 20000):]
-    print(signal_quality(d))
-    process_dataset("data/random/Paquette7-2.csv")
-    # import glob
-    # for f in glob.glob("data/tests/Paquette*.csv"):
-    #     plt.title(f.split("/")[-1])
-    #     process_dataset(f)
+    test_qualities()
